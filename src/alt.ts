@@ -4,7 +4,7 @@ var Bb = [-0.0065, 0, 0.001, 0.0028, 0, -0.0028, -0.002];
 var Tb = [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65];
 var Hb = [0, 11000, 20000, 32000, 47000, 51000, 71000];
 
-var Pb = [];
+var Pb: number[] = [];
 Pb[0] = 101325;
 for (var i = 1; i < Hb.length; ++i) {
     Pb[i] = calcPressure(i - 1, Hb[i]);
@@ -15,7 +15,7 @@ var HCeiling = 80000;
 var PFloor = calcPressure(0, HFloor);
 var PCeiling = parseFloat(calcPressure(6, HCeiling).toPrecision(9));
 
-function assignLayerIndex_Pb(P) {
+function assignLayerIndex_Pb(P: number) {
     if (P <= PFloor && P > Pb[1]) {
         var b = 0;
     } else if (P <= Pb[1] && P > Pb[2]) {
@@ -31,10 +31,10 @@ function assignLayerIndex_Pb(P) {
     } else if (P <= Pb[6] && P >= PCeiling) {
         var b = 6;
     }
-    return b;
+    return b!;
 }
 
-function assignLayerIndex_Hb(H) {
+function assignLayerIndex_Hb(H: number) {
     if (H >= HFloor && H < Hb[1]) {
         var b = 0;
     } else if (H >= Hb[1] && H < Hb[2]) {
@@ -50,10 +50,10 @@ function assignLayerIndex_Hb(H) {
     } else if (H >= Hb[6] && H <= HCeiling) {
         var b = 6;
     }
-    return b;
+    return b!;
 }
 
-function calcAltitude(b, P) {
+function calcAltitude(b: number, P: number) {
     if (Bb[b] != 0) {
         return (((Math.pow(P / Pb[b], -Bb[b] * R / g) - 1) / Bb[b]) * Tb[b]) + Hb[b];
     } else {
@@ -61,7 +61,7 @@ function calcAltitude(b, P) {
     }
 }
 
-function calcPressure(b, H) {
+function calcPressure(b: number, H: number) {
     if (Bb[b] != 0) {
         return Pb[b] * Math.pow(1 + (Bb[b] * (H - Hb[b]) / Tb[b]), -g / (Bb[b] * R));
     } else {
@@ -69,17 +69,17 @@ function calcPressure(b, H) {
     }
 }
 
-function calc_H(P) {
+function calc_H(P: number) {
     var b = assignLayerIndex_Pb(P);
     return calcAltitude(b, P);
 }
 
-function calc_P(H) {
+function calc_P(H: number) {
     var b = assignLayerIndex_Hb(H);
     return calcPressure(b, H);
 }
 
-function calc_dP(H1, H2) {
+function calc_dP(H1: number, H2: number) {
     var b1 = assignLayerIndex_Hb(H1);
     var P1 = calcPressure(b1, H1);
     var b2 = assignLayerIndex_Hb(H2);
@@ -87,7 +87,7 @@ function calc_dP(H1, H2) {
     return P2 - P1;
 }
 
-function calc_dH(P1, P2) {
+function calc_dH(P1: number, P2: number) {
     var b1 = assignLayerIndex_Pb(P1);
     var H1 = calcAltitude(b1, P1);
     var b2 = assignLayerIndex_Pb(P2);
@@ -95,21 +95,21 @@ function calc_dH(P1, P2) {
     return H2 - H1;
 }
 
-function to_feet(m) {
+function to_feet(m: number) {
     return m * 3.28084;
 }
 
-function from_inhg(i) {
+function from_inhg(i: number) {
     return i * 3386.388640341;
 }
 
-function toInHg(i) {
+function toInHg(i: number) {
     return i / 3386.388640341;
 }
 
-function getQNH(H, P) {
+function getQNH(H: number, P: number) {
     return toInHg(Pb[0] + calc_dP(calc_H(P), H));
 }
 
-console.log(parseInt(Math.round(to_feet(calc_dH(from_inhg(30.01), from_inhg(10))))));
-console.log(parseInt(Math.round(to_feet(calc_H(from_inhg(29.62))))));
+console.log(Math.round(to_feet(calc_dH(from_inhg(30.01), from_inhg(10)))));
+console.log(Math.round(to_feet(calc_H(from_inhg(29.62)))));

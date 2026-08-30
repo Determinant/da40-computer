@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "none",
+    "lib": ["DOM", "DOM.Iterable", "ES2024"],
+    "rootDir": "src",
+    "outDir": "dist/assets/js",
+    "strict": true,
+    "alwaysStrict": false,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmitOnError": true,
+    "skipLibCheck": true,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts"]
+}

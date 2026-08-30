@@ -6,13 +6,16 @@
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <link rel="icon" href="icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
     <script src="https://cdn.jsdelivr.net/gh/masotime/json-url@master/dist/browser/json-url.js"></script>
     <style>
 @font-face {
-  font-family: "ocr";
-  src: url("./ocr-a-ext.woff") format('woff');
+  font-family: "B612";
+  src: url("./assets/fonts/B612-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
 }
 html {
   width: 100%;
@@ -20,7 +23,7 @@ html {
   font-size: 62.5%;
 }
 body {
-  font-family: "ocr", monospace;
+  font-family: "B612", sans-serif;
   font-size: 12px;
   font-size: 1.2rem;
 }
@@ -28,9 +31,9 @@ table.main {
   margin-bottom: 10px;
   width: 100%;
   border: 2px solid black;
-  font-family: "ocr", monospace;
+  font-family: "B612", sans-serif;
   font-size: 12px;
-  letter-spacing: -1px;
+  letter-spacing: normal;
   border-collapse: collapse;
 }
 object.chart {
@@ -53,7 +56,7 @@ div.row {
 }
 
 h1 {
-  font-family: "ocr", monospace;
+  font-family: "B612", sans-serif;
   font-size: 20px;
   margin: 0;
   margin-bottom: 5px;
@@ -90,7 +93,7 @@ table.main td.info {
 }
 
 table.main td input {
-  font-family: "ocr", monospace;
+  font-family: "B612", sans-serif;
   min-width: 1rem;
 }
 
@@ -125,7 +128,7 @@ table.main td div {
   display: inline-block;
 }
 button {
-  font-family: "ocr", monospace;
+  font-family: "B612", sans-serif;
   font-size: 18px;
   background-color: #fff;
   color: #000;
@@ -140,7 +143,7 @@ button {
 .copyright, #url {
   margin-top: 20px;
   font-size: 12px;
-  font-family: "ocr", monospace;
+  font-family: "B612", sans-serif;
 }
 
 .copyright {
@@ -154,21 +157,12 @@ button {
   text-align: left;
 }
 #url > textarea {
-  font-family: "ocr", monospace;
+  font-family: "B612", sans-serif;
   font-size: 12px;
   display: block;
   height: 100px;
   width: 100%;
 }
-  @media print {
-    body {
-      margin: 0;
-    }
-    .buttons {
-      display: none;
-    }
-  }
-
   td.chHeader, td.altHeader {
     min-width: 20px;
   }
@@ -182,11 +176,15 @@ button {
   td.mass-wrapper, td.cg-wrapper {
     background-color: #cc241d;
   }
-  .weight-label {
-    width: 75px;
+  #weights td:first-child {
+    min-width: 90px;
+    white-space: nowrap;
   }
-  .weight-value {
-    width: 30px;
+  #weights td:nth-child(2) {
+    min-width: 8ch;
+  }
+  #weights td:nth-child(3) {
+    min-width: 9ch;
   }
   .env-label {
     width: 130px;
@@ -194,11 +192,17 @@ button {
   .env-value {
     width: 40px;
   }
-  .outputs-label {
-    width: 120px;
+  #outputs td:first-child {
+    min-width: 150px;
+    white-space: nowrap;
   }
   .outputs-value {
     width: 60px;
+  }
+  #tools td:nth-child(2),
+  #tools td:nth-child(4) {
+    min-width: 50px;
+    width: 50px;
   }
   table.main tr td:first-child {
     text-align: right;
@@ -258,8 +262,156 @@ button {
   object.chart {
     width: 100%;
   }
-  .weight-label {
-    width: 130px;
+  #weights td:first-child {
+    min-width: 130px;
+  }
+}
+
+@page {
+  margin: 8mm;
+}
+
+@media print {
+  html,
+  body {
+    width: auto;
+    height: auto;
+  }
+
+  body {
+    margin: 0;
+    color: #000;
+    background: #fff;
+    font-size: 8pt;
+    line-height: 1.08;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .container {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+
+  .title {
+    margin: 0 0 2mm;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 14pt;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 1.28fr);
+    gap: 2mm;
+    align-items: start;
+    text-align: initial;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .summary-grid > .col3 {
+    display: block;
+    width: auto !important;
+    min-width: 0;
+  }
+
+  table.main {
+    width: 100%;
+    margin: 0 0 1.5mm;
+    border-width: 0.35mm;
+    font-size: 7.5pt;
+    line-height: 1.05;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  table.main tr,
+  table.main td {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  table.main td {
+    padding: 0.35mm 0.8mm;
+    border-width: 0.2mm;
+  }
+
+  table.main td div {
+    min-height: 0.9em;
+    background: #f2f2f2 !important;
+  }
+
+  table.main tr.header td,
+  table.main td.header,
+  table.main tr.header0 td,
+  table.main td.header0 {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #weights td:first-child,
+  #weights td:nth-child(2),
+  #weights td:nth-child(3),
+  #outputs td:first-child,
+  #tools td:nth-child(2),
+  #tools td:nth-child(4) {
+    min-width: 0;
+  }
+
+  .env-label,
+  .env-value,
+  .outputs-value,
+  #tools td:nth-child(2),
+  #tools td:nth-child(4) {
+    width: auto;
+  }
+
+  .wind,
+  .holding {
+    min-width: 0;
+  }
+
+  input[type="checkbox"] {
+    margin: 0 0.4mm 0 0;
+  }
+
+  .buttons,
+  #url {
+    display: none !important;
+  }
+
+  .charts {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .chart-row {
+    margin: 0 0 2mm;
+    line-height: 0;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .chart-row:nth-child(3) {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  object.chart {
+    display: block;
+    width: 172mm;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+  }
+
+  .copyright {
+    margin-top: 1mm;
+    font-size: 7pt;
   }
 }
 
@@ -270,7 +422,7 @@ button {
       <div class="row title">
         <h1>DA40 Computer</h1>
       </div>
-      <div class="row">
+      <div class="row summary-grid">
         <div class="col3" style="width: auto">
           <table class="main" id="weights">
             <tr class="header0">
@@ -396,12 +548,8 @@ button {
               <td class="cg-wrapper"><span class="cg"></span></td>
             </tr>
             <tr>
-              <td>Vy [T/O] (kts)</td>
+              <td>Climb [T/O,UP] (kts)</td>
               <td><span class="vy"></span></td>
-            </tr>
-            <tr>
-              <td>Climb [UP] (kts)</td>
-              <td><span class="vclimb"></span></td>
             </tr>
             <tr>
               <td>Vg (kts)</td>
@@ -426,20 +574,12 @@ button {
               <td><span class="landing"></span></td>
             </tr>
             <tr>
-              <td>Vy ↑ (fpm)</td>
+              <td>Climb [T/O,UP] (fpm)</td>
               <td><span class="takeoff-climb"></span></td>
             </tr>
             <tr>
-              <td>Vy ↑ (ft/NM)</td>
+              <td>Climb [T/O,UP] (ft/NM)</td>
               <td><span class="takeoff-climb-gradient"></span></td>
-            </tr>
-            <tr>
-              <td>Climb ↑ (fpm)</td>
-              <td><span class="cruise-climb"></span></td>
-            </tr>
-            <tr>
-              <td>Climb ↑ (ft/NM)</td>
-              <td><span class="cruise-climb-gradient"></span></td>
             </tr>
           </table>
         </div>
@@ -573,17 +713,19 @@ button {
         <div id="url">
         </div>
       </div>
-      <div class="row">
-        <object class="chart" data="takeoff-chart.svg" type="image/svg+xml" id="takeoff"></object>
-      </div>
-      <div class="row">
-        <object class="chart" data="landing-chart.svg" type="image/svg+xml" id="landing"></object>
-      </div>
-      <div class="row">
-        <object class="chart" data="takeoff-climb-chart.svg" type="image/svg+xml" id="takeoff-climb"></object>
-      </div>
-      <div class="row">
-        <object class="chart" data="cruise-climb-chart.svg" type="image/svg+xml" id="cruise-climb"></object>
+      <div class="charts">
+        <div class="row chart-row">
+          <object class="chart" data="assets/charts/takeoff-chart.svg" type="image/svg+xml" id="takeoff"></object>
+        </div>
+        <div class="row chart-row">
+          <object class="chart" data="assets/charts/landing-chart.svg" type="image/svg+xml" id="landing"></object>
+        </div>
+        <div class="row chart-row">
+          <object class="chart" data="assets/charts/takeoff-climb-chart.svg" type="image/svg+xml" id="takeoff-climb"></object>
+        </div>
+        <div class="row chart-row">
+          <object class="chart" data="assets/charts/cruise-climb-chart.svg" type="image/svg+xml" id="cruise-climb"></object>
+        </div>
       </div>
       <div class="row">
         <div class="copyright">
@@ -591,8 +733,8 @@ button {
         </div>
       </div>
     </div>
-    <script src="da40.js">
-    </script>
+    <script src="assets/js/chart-trace.js"></script>
+    <script src="assets/js/da40.js"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js');

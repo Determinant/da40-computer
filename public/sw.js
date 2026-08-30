@@ -1,18 +1,19 @@
-const CACHE = 'da40-v6';
+const CACHE = 'da40-v21';
 const CDN = 'https://cdn.jsdelivr.net/gh/masotime/json-url@master/dist/browser/json-url.js';
 const FILES = [
   './',
   './da40.html',
-  './da40.js',
-  './ocr-a-ext.woff',
-  './takeoff-chart.svg',
-  './landing-chart.svg',
-  './takeoff-climb-chart.svg',
-  './cruise-climb-chart.svg',
+  './assets/js/chart-trace.js',
+  './assets/js/da40.js',
+  './assets/fonts/B612-Regular.ttf',
+  './assets/charts/takeoff-chart.svg',
+  './assets/charts/landing-chart.svg',
+  './assets/charts/takeoff-climb-chart.svg',
+  './assets/charts/cruise-climb-chart.svg',
   './manifest.webmanifest',
-  './icon.svg',
-  './icon-192.png',
-  './icon-512.png'
+  './assets/icons/icon.svg',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png'
 ];
 
 self.addEventListener('install', event => {

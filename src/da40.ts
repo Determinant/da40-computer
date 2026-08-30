@@ -1,4 +1,41 @@
-const getBounds = (path) => {
+type Bounds = {
+    xmin: number;
+    xmax: number;
+    ymin: number;
+    ymax: number;
+};
+
+type ChartStep = {
+    x: string;
+    y: string;
+    curves: string[];
+    marks?: number[];
+    getX: (input: number) => number | null;
+};
+
+type ChartDefinition = {
+    doc: string;
+    svg: string;
+    canvas: string;
+    flipY?: boolean;
+    lineWidth?: string;
+    press: ChartStep;
+    mass?: ChartStep;
+    wind?: ChartStep;
+    obst?: ChartStep;
+    output: (value: number) => number;
+};
+
+type StepCalculator = (output: number | null, input: number) => number | null;
+type ChartCalculator = (
+    alt: number,
+    oat: number,
+    mass?: number,
+    wind?: number,
+    obst?: number,
+) => number;
+
+const getBounds = (path: SVGGeometryElement): Bounds => {
     let start = path.getPointAtLength(0);
     let end = path.getPointAtLength(path.getTotalLength());
     let o = {
@@ -16,7 +53,12 @@ const getBounds = (path) => {
     return o;
 };
 class Coordinate {
-    constructor(x, y, flipY) {
+    declare origin: { x: number; y: number };
+    declare xmax: number;
+    declare ymax: number;
+    declare flipY: boolean;
+
+    constructor(x: SVGGeometryElement, y: SVGGeometryElement, flipY?: boolean) {
         let ox = getBounds(x);
         let oy = getBounds(y);
         this.origin = {
@@ -28,15 +70,15 @@ class Coordinate {
         this.flipY = !!flipY;
     }
 
-    getCanvasX = (x, y) => (this.xmax - this.origin.x) * x + this.origin.x;
-    getCanvasY(y) {
+    getCanvasX = (x: number) => (this.xmax - this.origin.x) * x + this.origin.x;
+    getCanvasY(y: number) {
         if (this.flipY) {
             y = 1 - y;
         }
         return (this.ymax - this.origin.y) * y + this.origin.y;
     }
 
-    getPointAtCanvasX(path, canvasX) {
+    getPointAtCanvasX(path: SVGGeometryElement, canvasX: number) {
         let l = 0;
         let r = path.getTotalLength();
         if (path.getPointAtLength(l).x > path.getPointAtLength(r).x) {
@@ -56,7 +98,7 @@ class Coordinate {
         return path.getPointAtLength(l);
     }
 
-    getPointAtCanvasY(path, canvasY) {
+    getPointAtCanvasY(path: SVGGeometryElement, canvasY: number) {
         let l = 0;
         let r = path.getTotalLength();
         if (path.getPointAtLength(l).y > path.getPointAtLength(r).y) {
@@ -76,42 +118,44 @@ class Coordinate {
         return path.getPointAtLength(l);
     }
 
-    getX = (canvasX) => (canvasX - this.origin.x) / (this.xmax - this.origin.x);
-    getY = (canvasY) => (this.flipY ? (this.ymax - canvasY) : (canvasY - this.origin.y)) / (this.ymax - this.origin.y);
-    getPointAtX = (path, x) => this.getPointAtCanvasX(path, this.getCanvasX(x));
-    getPointAtY = (path, y) => this.getPointAtCanvasY(path, this.getCanvasY(y));
+    getX = (canvasX: number) => (canvasX - this.origin.x) / (this.xmax - this.origin.x);
+    getY = (canvasY: number) => (this.flipY ? (this.ymax - canvasY) : (canvasY - this.origin.y)) / (this.ymax - this.origin.y);
+    getPointAtX = (path: SVGGeometryElement, x: number) => this.getPointAtCanvasX(path, this.getCanvasX(x));
+    getPointAtY = (path: SVGGeometryElement, y: number) => this.getPointAtCanvasY(path, this.getCanvasY(y));
 }
 
-const createChartCalculator = (chart) => {
-    const chartObject = document.getElementById(chart.doc);
+const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
+    const chartObject = document.getElementById(chart.doc) as HTMLObjectElement | null;
     const svgDoc = chartObject && chartObject.contentDocument;
     const svg = svgDoc && svgDoc.getElementById(chart.svg);
     const canvas = svgDoc && svgDoc.getElementById(chart.canvas);
-    let calcLines = [];
+    let tracePaths: SVGPathElement[] = [];
+    let traceY: number | null = null;
+    let traceRightX: number | null = null;
 
     if (!svgDoc || !svg || !canvas) {
         console.warn(`Chart unavailable: ${chart.doc}`);
         return () => NaN;
     }
 
-    const prepareStep = (step) => {
-        const xAxis = svgDoc.getElementById(step.x);
-        const yAxis = svgDoc.getElementById(step.y);
-        let curveIDs = step.curves;
-        let curveMarks = [];
-        let curves = [];
+    const prepareStep = (step: ChartStep): StepCalculator | null => {
+        const xAxis = svgDoc.getElementById(step.x) as SVGGeometryElement | null;
+        const yAxis = svgDoc.getElementById(step.y) as SVGGeometryElement | null;
+        let curveIDs: string[] = step.curves;
+        let curveMarks: number[] = [];
+        let curves: (SVGGeometryElement | null)[] = [];
         let prev = 0;
-        curves = curveIDs.map(id => svgDoc.getElementById(id));
+        curves = curveIDs.map(id => svgDoc.getElementById(id) as SVGGeometryElement | null);
         const paths = [xAxis, yAxis, ...curves];
-        if (paths.some(path => !path || typeof path.getPointAtLength !== 'function' ||
-            typeof path.getTotalLength !== 'function')) {
+        if (paths.some(path => !path || typeof (path as SVGGeometryElement).getPointAtLength !== 'function' ||
+            typeof (path as SVGGeometryElement).getTotalLength !== 'function')) {
             console.warn(`Chart step unavailable: ${chart.doc}`);
             return null;
         }
-        let coord = new Coordinate(xAxis, yAxis, chart.flipY);
+        let coord = new Coordinate(xAxis!, yAxis!, chart.flipY);
         if (step.marks === undefined) {
             for (let i = 0; i < curveIDs.length; i++) {
-                curveMarks.push(coord.getY(curves[i].getPointAtLength(0).y));
+                curveMarks.push(coord.getY(curves[i]!.getPointAtLength(0).y));
                 if (curveMarks[i] < prev) {
                     console.log("invalid marks!");
                 }
@@ -120,16 +164,16 @@ const createChartCalculator = (chart) => {
         } else {
             curveMarks = step.marks;
         }
-        let up = document.createElementNS(svg.namespaceURI, "path");
-        let right = document.createElementNS(svg.namespaceURI, "path");
-        canvas.appendChild(up);
-        canvas.appendChild(right);
-        calcLines.push(up);
-        calcLines.push(right);
+        const strokeWidth = chart.lineWidth ? chart.lineWidth : '1px';
+        const traceElements = ChartTrace.createElements(svg, canvas, strokeWidth);
+        tracePaths.push(
+            traceElements.curve,
+            traceElements.inputGuide,
+            traceElements.outputGuide,
+            traceElements.marker,
+        );
 
-        //step.coord = coord;
-
-        return (output, input) => {
+        return (output: number | null, input: number) => {
             if (output == null || isNaN(input)) {
                 return null;
             }
@@ -138,7 +182,7 @@ const createChartCalculator = (chart) => {
                 return null;
             }
             let prevCurveIdx = 0;
-            let curveIdx;
+            let curveIdx: number | undefined;
             for (let i = 0; i < curveMarks.length; i++) {
                 if (output <= curveMarks[i]) {
                     curveIdx = i;
@@ -149,22 +193,25 @@ const createChartCalculator = (chart) => {
             if (curveIdx === undefined) {
                 return null;
             }
-            let canvasY1 = coord.getPointAtX(curves[curveIdx], x).y;
-            let canvasY0 = coord.getPointAtX(curves[prevCurveIdx], x).y;
+            let canvasY1 = coord.getPointAtX(curves[curveIdx]!, x).y;
+            let canvasY0 = coord.getPointAtX(curves[prevCurveIdx]!, x).y;
             let ratio = (output - curveMarks[prevCurveIdx]) / (curveMarks[curveIdx] - curveMarks[prevCurveIdx]);
             let canvasY = canvasY0 == canvasY1 ? canvasY0 : ((canvasY1 - canvasY0) * ratio + canvasY0);
-            let strokeWidth = chart.lineWidth ? chart.lineWidth : '1px';
-            up.setAttribute("d", `M ${coord.getCanvasX(x)},${coord.getCanvasY(0)} V ${canvasY}`);
-            up.setAttribute("stroke", "red");
-            up.setAttribute("stroke-width", strokeWidth);
-            up.setAttribute("opacity", 1);
-            up.setAttribute("fill", "none");
-
-            right.setAttribute("d", `M ${coord.getCanvasX(x)},${canvasY} H ${coord.getCanvasX(1)}`);
-            right.setAttribute("stroke", "red");
-            right.setAttribute("stroke-width", strokeWidth);
-            right.setAttribute("opacity", 1);
-            right.setAttribute("fill", "none");
+            const traceExit = ChartTrace.render({
+                elements: traceElements,
+                coord,
+                curves: curves as SVGGeometryElement[],
+                previousCurveIndex: prevCurveIdx,
+                curveIndex: curveIdx,
+                curveMark: curveMarks[curveIdx],
+                output,
+                ratio,
+                x,
+                canvasY,
+                entry: traceY == null || traceRightX == null ? null : { x: traceRightX, y: traceY },
+            });
+            traceY = traceExit.y;
+            traceRightX = traceExit.x;
             return coord.getY(canvasY);
         }
     }
@@ -179,10 +226,12 @@ const createChartCalculator = (chart) => {
         return () => NaN;
     }
 
-    return (alt, oat, mass, wind, obst) => {
-        for (let i = 0; i < calcLines.length; i++) {
-            calcLines[i].setAttribute('d', '');
+    return (alt: number, oat: number, mass?: number, wind?: number, obst?: number) => {
+        for (let i = 0; i < tracePaths.length; i++) {
+            tracePaths[i].setAttribute('d', '');
         }
+        traceY = null;
+        traceRightX = null;
         if (alt < 0) {
             alt = 0;
         }
@@ -191,13 +240,13 @@ const createChartCalculator = (chart) => {
         }
         let out = inputPress(alt, oat);
         if (inputMass) {
-            out = inputMass(out, mass);
+            out = inputMass(out, mass as number);
         }
         if (inputWind) {
-            out = inputWind(out, wind);
+            out = inputWind(out, wind as number);
         }
         if (inputObst) {
-            out = inputObst(out, obst);
+            out = inputObst(out, obst as number);
         }
         if (out == null) {
             return NaN;
@@ -206,22 +255,25 @@ const createChartCalculator = (chart) => {
     }
 };
 
-const setValue = (dom, v) => {
-    dom.innerText = v;
+const setValue = (dom: Element | null, v: unknown) => {
+    (dom as HTMLElement).innerText = v as string;
 }
 
-const clearValue = (dom) => {
-    dom.innerText = "";
+const clearValue = (dom: Element | null) => {
+    (dom as HTMLElement).innerText = "";
 }
 
-const formatFloat = (v, prec) => Number.isFinite(v) ? v.toFixed(prec === undefined ? 2 : prec) : "";
-const formatInt = (v) => Number.isFinite(v) ? v.toFixed(0) : "";
-const rectifyDir = (v) => (v % 360 + 360) % 360;
-const formatDir = (v) => Number.isFinite(v) ? padZero(rectifyDir(v) || 360, 3) : "";
-const feetPerNauticalMile = (fpm, knots) =>
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const formatFloat = (v: unknown, prec?: number) => isFiniteNumber(v) ? v.toFixed(prec === undefined ? 2 : prec) : "";
+const formatInt = (v: unknown) => isFiniteNumber(v) ? v.toFixed(0) : "";
+const formatInts = (...values: unknown[]) =>
+    values.every(isFiniteNumber) ? values.map(formatInt).join(',') : '';
+const rectifyDir = (v: number) => (v % 360 + 360) % 360;
+const formatDir = (v: unknown) => isFiniteNumber(v) ? padZero(rectifyDir(v) || 360, 3) : "";
+const feetPerNauticalMile = (fpm: number, knots: number) =>
     Number.isFinite(fpm) && Number.isFinite(knots) && knots > 0 ? fpm * 60 / knots : NaN;
 
-const withinDirRange = (d, from, to) => {
+const withinDirRange = (d: number, from: number, to: number) => {
     from = rectifyDir(from);
     to = rectifyDir(to);
     d = rectifyDir(d);
@@ -234,13 +286,13 @@ const withinDirRange = (d, from, to) => {
     return d <= to;
 }
 
-const parseQNH = (e) => {
+const parseQNH = (e: Element | null) => {
     const x = parseValue(e);
     return (20 <= x && x <= 40) ? x : NaN;
 }
 
-const parseValue = (e, d) => {
-    const text = e.innerText.trim();
+const parseValue = (e: Element | null, d = NaN): number => {
+    const text = (e as HTMLElement).innerText.trim();
     if (text == "") {
         return d;
     }
@@ -248,24 +300,24 @@ const parseValue = (e, d) => {
     return Number.isFinite(x) ? x : NaN;
 }
 
-const parsePositiveValue = (e, d) => {
+const parsePositiveValue = (e: Element | null, d?: number): number => {
     const x = parseValue(e, d);
-    return x === undefined || x === null || x >= 0 ? x : NaN;
+    return x >= 0 ? x : NaN;
 }
 
-const parseDirection = (e, d) => {
+const parseDirection = (e: Element | null, d?: number): number => {
     const x = parseValue(e, d);
-    return x === undefined || x === null || (0 <= x && x <= 360) ? x : NaN;
+    return 0 <= x && x <= 360 ? x : NaN;
 }
 
-const parseRunway = (e, d) => {
+const parseRunway = (e: Element | null, d?: number): number => {
     const x = parseValue(e, d);
-    return x === undefined || x === null || (Number.isInteger(x) && 1 <= x && x <= 36) ? x : NaN;
+    return Number.isInteger(x) && 1 <= x && x <= 36 ? x : NaN;
 }
 
-const rad2deg = (r) => r / Math.PI * 180;
-const deg2rad = (d) => d / 180 * Math.PI;
-const padZero = (num, size) => {
+const rad2deg = (r: number) => r / Math.PI * 180;
+const deg2rad = (d: number) => d / 180 * Math.PI;
+const padZero = (num: number, size: number) => {
     const s = "000000000" + num;
     return s.substr(s.length - size);
 }
@@ -322,9 +374,7 @@ const momentClasses = [
     '.baggage-ext-aft-moment',
 ];
 
-const speedClasses = ['.vy', '.vclimb', '.vg'];
-
-const takeoffChart = {
+const takeoffChart: ChartDefinition = {
     doc: 'takeoff',
     svg: 'svg2',
     canvas: 'g10',
@@ -384,7 +434,7 @@ const takeoffChart = {
     output: (y) => Math.ceil((y * (1400 - 100) + 100) * 3.28084),
 };
 
-const landingChart = {
+const landingChart: ChartDefinition = {
     doc: 'landing',
     svg: 'svg378',
     canvas: 'layer1',
@@ -446,7 +496,7 @@ const landingChart = {
     output: (y) => Math.ceil((y * (1400 - 100) + 100) * 3.28084),
 };
 
-const takeoffClimbChart = {
+const takeoffClimbChart: ChartDefinition = {
     doc: 'takeoff-climb',
     svg: 'svg471',
     canvas: 'layer1',
@@ -482,7 +532,7 @@ const takeoffClimbChart = {
     output: (y) => Math.ceil((1 - y) * (1600 - 0) + 0),
 };
 
-const cruiseClimbChart = {
+const cruiseClimbChart: ChartDefinition = {
     doc: 'cruise-climb',
     svg: 'svg471',
     canvas: 'layer1',
@@ -518,13 +568,13 @@ const cruiseClimbChart = {
     output: (y) => Math.ceil((1 - y) * (1600 - 0) + 0),
 };
 
-let takeoffCalc;
-let landingCalc;
-let takeoffClimbCalc;
-let cruiseClimbCalc;
-let fpmSource;
+let takeoffCalc: ChartCalculator | undefined;
+let landingCalc: ChartCalculator | undefined;
+let takeoffClimbCalc: ChartCalculator | undefined;
+let cruiseClimbCalc: ChartCalculator | undefined;
+let fpmSource: string | undefined;
 
-const interpolateAirspeed = (speeds, mass) => {
+const interpolateAirspeed = (speeds: number[], mass: number): number => {
     let start = 0;
     let speed0 = 0;
     let speedMin = speeds[0];
@@ -537,9 +587,10 @@ const interpolateAirspeed = (speeds, mass) => {
         speed0 = speeds[i];
         start = end;
     }
+    return NaN;
 }
 
-const checkCG = (mass, cg, isLongRange) => {
+const checkCG = (mass: number, cg: number, isLongRange: boolean) => {
     const minForwardCG = mass > 2161 ? ((97.6 - 94.5) / (2646 - 2161) * (mass - 2161) + 94.5) : 94.5;
     const maxRearwardCG = isLongRange ? maxRearwardCGLong : maxRearwardCGStd;
     if (cg > maxRearwardCG) {
@@ -551,16 +602,16 @@ const checkCG = (mass, cg, isLongRange) => {
     return 0;
 }
 
-const checkMass = (mass, mam) =>
+const checkMass = (mass: number, mam: boolean) =>
     Number.isFinite(mass) && mass <= (mam ? maxGrossWeightAlt : maxGrossWeight);
 
 const refresh = () => {
-    const weights = document.getElementById('weights');
-    const outputs = document.getElementById('outputs');
-    const env = document.getElementById('env');
+    const weights = document.getElementById('weights')!;
+    const outputs = document.getElementById('outputs')!;
+    const env = document.getElementById('env')!;
 
-    const qnh = env.querySelector('.qnh');
-    const press = env.querySelector('.press-alt');
+    const qnh = env.querySelector('.qnh')!;
+    const press = env.querySelector('.press-alt')!;
     const elev = parsePositiveValue(env.querySelector('.field-alt'));
 
     if (qnh.classList.contains('active')) {
@@ -581,8 +632,8 @@ const refresh = () => {
         totalMoment += moment;
     }
 
-    const isMAM = weights.querySelector('input[name="mam-40-227"]').checked;
-    const isLongRange = weights.querySelector('input[name="longrange-tank"]').checked;
+    const isMAM = (weights.querySelector('input[name="mam-40-227"]') as HTMLInputElement).checked;
+    const isLongRange = (weights.querySelector('input[name="longrange-tank"]') as HTMLInputElement).checked;
     const fuelVolume = parsePositiveValue(weights.querySelector('.fuel-vol'));
     const maxFuelVolume = isLongRange ? maxFuelVolumeLong : maxFuelVolumeStd;
     const fuelMass = Number.isFinite(fuelVolume) && fuelVolume <= maxFuelVolume ? fuelVolume * fuelDensity : NaN;
@@ -599,13 +650,13 @@ const refresh = () => {
     const massOk = checkMass(totalMass, isMAM);
     const wbOk = massOk && (cgOut == 0);
 
-    const massOutput = outputs.querySelector('.total-mass');
-    const cgOutput = outputs.querySelector('.cg');
+    const massOutput = outputs.querySelector('.total-mass')!;
+    const cgOutput = outputs.querySelector('.cg')!;
     setValue(massOutput, formatFloat(totalMass));
     if (isNaN(totalMass)) {
-        massOutput.parentNode.classList.remove('ok');
+        (massOutput.parentNode as Element).classList.remove('ok');
     } else {
-        const classes = massOutput.parentNode.classList;
+        const classes = (massOutput.parentNode as Element).classList;
         if (massOk) {
             classes.add('ok');
         } else {
@@ -620,9 +671,9 @@ const refresh = () => {
     }
     setValue(cgOutput, cgMark);
     if (isNaN(cg)) {
-        cgOutput.parentNode.classList.remove('ok');
+        (cgOutput.parentNode as Element).classList.remove('ok');
     } else {
-        const classes = cgOutput.parentNode.classList;
+        const classes = (cgOutput.parentNode as Element).classList;
         if (cgOut == 0) {
             classes.add('ok');
         } else {
@@ -630,18 +681,22 @@ const refresh = () => {
         }
     }
 
-    const speeds = [vys, vclimbs, vgs];
     const oat = parseValue(env.querySelector('.oat'));
     const pressAlt = parseValue(env.querySelector('.press-alt'));
 
     if (wbOk) {
-        for (let i = 0; i < speeds.length; i++) {
-            setValue(outputs.querySelector(speedClasses[i]), formatInt(interpolateAirspeed(speeds[i], totalMass)));
-        }
+        setValue(outputs.querySelector('.vy'),
+            formatInts(
+                interpolateAirspeed(vys, totalMass),
+                interpolateAirspeed(vclimbs, totalMass),
+            ));
+        setValue(outputs.querySelector('.vg'), formatInt(interpolateAirspeed(vgs, totalMass)));
         setValue(outputs.querySelector('.vapp'),
-            formatInt(interpolateAirspeed(vappLdgs, totalMass)) + ',' +
-            formatInt(interpolateAirspeed(vappTos, totalMass)) + ',' +
-            formatInt(interpolateAirspeed(vappUp, totalMass)));
+            formatInts(
+                interpolateAirspeed(vappLdgs, totalMass),
+                interpolateAirspeed(vappTos, totalMass),
+                interpolateAirspeed(vappUp, totalMass),
+            ));
 
         let va = 94;
         if (isMAM) {
@@ -661,26 +716,26 @@ const refresh = () => {
         const obst = parsePositiveValue(env.querySelector('.obst'));
         if (takeoffCalc !== undefined) {
             setValue(outputs.querySelector('.takeoff'), formatInt(takeoffCalc(pressAlt, oat, totalMass, wind, obst)));
-            setValue(outputs.querySelector('.landing'), formatInt(landingCalc(pressAlt, oat, totalMass, wind, obst)));
-            const takeoffClimb = takeoffClimbCalc(pressAlt, oat, totalMass);
-            const cruiseClimb = cruiseClimbCalc(pressAlt, oat, totalMass);
-            setValue(outputs.querySelector('.takeoff-climb'), formatInt(takeoffClimb));
-            setValue(outputs.querySelector('.takeoff-climb-gradient'), formatInt(feetPerNauticalMile(takeoffClimb, vyGroundSpeed)));
-            setValue(outputs.querySelector('.cruise-climb'), formatInt(cruiseClimb));
-            setValue(outputs.querySelector('.cruise-climb-gradient'), formatInt(feetPerNauticalMile(cruiseClimb, climbGroundSpeed)));
+            setValue(outputs.querySelector('.landing'), formatInt(landingCalc!(pressAlt, oat, totalMass, wind, obst)));
+            const takeoffClimb = takeoffClimbCalc!(pressAlt, oat, totalMass);
+            const cruiseClimb = cruiseClimbCalc!(pressAlt, oat, totalMass);
+            setValue(outputs.querySelector('.takeoff-climb'),
+                formatInts(takeoffClimb, cruiseClimb));
+            setValue(outputs.querySelector('.takeoff-climb-gradient'),
+                formatInts(
+                    feetPerNauticalMile(takeoffClimb, vyGroundSpeed),
+                    feetPerNauticalMile(cruiseClimb, climbGroundSpeed),
+                ));
         }
     } else {
-        for (let i = 0; i < speeds.length; i++) {
-            clearValue(outputs.querySelector(speedClasses[i]));
-        }
+        clearValue(outputs.querySelector('.vy'));
+        clearValue(outputs.querySelector('.vg'));
         clearValue(outputs.querySelector('.vapp'));
         clearValue(outputs.querySelector('.va'));
         clearValue(outputs.querySelector('.takeoff'));
         clearValue(outputs.querySelector('.landing'));
         clearValue(outputs.querySelector('.takeoff-climb'));
         clearValue(outputs.querySelector('.takeoff-climb-gradient'));
-        clearValue(outputs.querySelector('.cruise-climb'));
-        clearValue(outputs.querySelector('.cruise-climb-gradient'));
     }
 
     const isa = 15 - 1.98 * (pressAlt / 1000);
@@ -689,7 +744,7 @@ const refresh = () => {
 }
 
 const refreshTools = () => {
-    const tools = document.getElementById('tools');
+    const tools = document.getElementById('tools')!;
 
     const wcdir = parseDirection(tools.querySelector('.wc-dir'));
     const wcvel = parsePositiveValue(tools.querySelector('.wc-vel'));
@@ -702,8 +757,8 @@ const refreshTools = () => {
                 (xwind > 0 ? `${formatInt(xwind)} →` : `← ${formatInt(-xwind)}`)));
     setValue(tools.querySelector('.wc-head'), formatInt(Math.round(Math.cos(wcd) * wcvel)));
 
-    const inbound = tools.querySelector('.h-in');
-    const outbound = tools.querySelector('.h-out');
+    const inbound = tools.querySelector('.h-in')!;
+    const outbound = tools.querySelector('.h-out')!;
     if (inbound.classList.contains('active')) {
         outbound.textContent = formatDir((parseDirection(inbound) + 180) % 360);
     } else if (outbound.classList.contains('active')) {
@@ -713,7 +768,7 @@ const refreshTools = () => {
     let holdingType = "";
     let ob = parseDirection(outbound);
     if (!isNaN(ob) && !isNaN(hHdg)) {
-        if (tools.querySelector('.h-left').checked) {
+        if ((tools.querySelector('.h-left') as HTMLInputElement).checked) {
             holdingType = withinDirRange(ob, hHdg + 110, hHdg - 70) ? "D" :
                 (withinDirRange(ob, hHdg + 1, hHdg + 110) ? "P" : "T");
         } else {
@@ -767,32 +822,32 @@ const refreshTools = () => {
     const ttas = parsePositiveValue(tools.querySelector('.t-tas'));
     setValue(tools.querySelector('.t-bank'), formatInt(Math.round(rad2deg(Math.atan(ttas / 364)))));
 
-    const ccel = tools.querySelector('.c-cel');
-    const cfah = tools.querySelector('.c-fah');
+    const ccel = tools.querySelector('.c-cel')!;
+    const cfah = tools.querySelector('.c-fah')!;
     if (ccel.classList.contains('active')) {
         cfah.textContent = formatFloat(parseValue(ccel) * 1.8 + 32);
     } else if (cfah.classList.contains('active')) {
         ccel.textContent = formatFloat((parseValue(cfah) - 32) * 5 / 9);
     }
 
-    const cnm = tools.querySelector('.c-nm');
-    const csm = tools.querySelector('.c-sm');
+    const cnm = tools.querySelector('.c-nm')!;
+    const csm = tools.querySelector('.c-sm')!;
     if (cnm.classList.contains('active')) {
         csm.textContent = formatFloat(parseValue(cnm) * 1.15078);
     } else if (csm.classList.contains('active')) {
         cnm.textContent = formatFloat(parseValue(csm) * 0.868976);
     }
 
-    const cft = tools.querySelector('.c-ft');
-    const cm = tools.querySelector('.c-m');
+    const cft = tools.querySelector('.c-ft')!;
+    const cm = tools.querySelector('.c-m')!;
     if (cft.classList.contains('active')) {
         cm.textContent = formatInt(parseValue(cft) * 0.3048);
     } else if (cm.classList.contains('active')) {
         cft.textContent = formatInt(parseValue(cm) / 0.3048);
     }
 
-    const clb = tools.querySelector('.c-lb');
-    const ckg = tools.querySelector('.c-kg');
+    const clb = tools.querySelector('.c-lb')!;
+    const ckg = tools.querySelector('.c-kg')!;
     if (clb.classList.contains('active')) {
         ckg.textContent = formatInt(parseValue(clb) * 0.45359237);
     } else if (ckg.classList.contains('active')) {
@@ -812,27 +867,27 @@ const refreshTools = () => {
     }
 }
 
-const regUpdatable = (updatable, func) => {
+const regUpdatable = (updatable: NodeListOf<Element>, func: () => void) => {
     for (let i = 0; i < updatable.length; i++) {
         updatable[i].addEventListener('input', () => func());
     }
 }
 
-const genLimitChars = (elem, n) => {
-    return (e) => {
+const genLimitChars = (elem: HTMLElement, n: number) => {
+    return (e: KeyboardEvent) => {
         if (e.which == 13 || (e.which != 8 && elem.innerText.length >= n)) {
             e.preventDefault();
         }
     }
 }
 
-const regCharLimit = (s, n) => {
-    let limit = document.querySelectorAll(s);
+const regCharLimit = (s: string, n: number) => {
+    let limit = document.querySelectorAll<HTMLElement>(s);
     for (let i = 0; i < limit.length; i++) {
         let elem = limit[i];
         elem.addEventListener("keypress", genLimitChars(elem, n));
-        elem.addEventListener("paste", (e) => {
-            let pastedText;
+        elem.addEventListener("paste", (e: ClipboardEvent) => {
+            let pastedText: string | undefined;
             if (window.clipboardData && window.clipboardData.getData) { // IE
                 pastedText = window.clipboardData.getData('Text');
             } else if (e.clipboardData && e.clipboardData.getData) {
@@ -849,15 +904,15 @@ const regCharLimit = (s, n) => {
 }
 const jurl = JsonUrl('lzma');
 const getUserData = () => {
-    const getText = (dom, classes, res) => {
+    const getText = (dom: Element, classes: string[], res: Record<string, unknown>) => {
         for (let i = 0; i < classes.length; i++) {
             const c = classes[i];
-            res[c] = dom.querySelector('.' + c).innerText;
+            res[c] = (dom.querySelector('.' + c) as HTMLElement).innerText;
         }
     }
-    let res = {};
-    const weights = document.getElementById('weights');
-    const env = document.getElementById('env');
+    let res: Record<string, unknown> = {};
+    const weights = document.getElementById('weights')!;
+    const env = document.getElementById('env')!;
     getText(weights, [
         'empty-mass',
         'empty-moment',
@@ -879,27 +934,27 @@ const getUserData = () => {
         'headwind',
         'obst',
     ], res);
-    const isMAM = weights.querySelector('input[name="mam-40-227"]').checked;
-    const isLongRange = weights.querySelector('input[name="longrange-tank"]').checked;
+    const isMAM = (weights.querySelector('input[name="mam-40-227"]') as HTMLInputElement).checked;
+    const isLongRange = (weights.querySelector('input[name="longrange-tank"]') as HTMLInputElement).checked;
     res['mam-40-227'] = isMAM;
     res['longrange-tank'] = isLongRange;
     return jurl.compress(res);
 }
 
-const setText = (dom, classes, res) => {
+const setText = (dom: Element, classes: string[], res: Record<string, unknown>) => {
     for (let i = 0; i < classes.length; i++) {
         const c = classes[i];
         if (res[c] !== undefined) {
-            dom.querySelector('.' + c).innerText = res[c];
+            (dom.querySelector('.' + c) as HTMLElement).innerText = res[c] as string;
         }
     }
 }
 
-const setUserData = (data) => {
+const setUserData = (data: string) => {
     jurl.decompress(data).then(json => {
         document.cookie = `da40-state=${encodeURIComponent(data)}; Max-Age=31536000; Path=/; Secure; SameSite=Lax`;
-        const weights = document.getElementById('weights');
-        const env = document.getElementById('env');
+        const weights = document.getElementById('weights')!;
+        const env = document.getElementById('env')!;
         setText(weights, [
             'empty-mass',
             'empty-moment',
@@ -921,8 +976,8 @@ const setUserData = (data) => {
             'headwind',
             'obst',
         ], json);
-        weights.querySelector('input[name="mam-40-227"]').checked = json['mam-40-227'];
-        weights.querySelector('input[name="longrange-tank"]').checked = json['longrange-tank'];
+        (weights.querySelector('input[name="mam-40-227"]') as HTMLInputElement).checked = json['mam-40-227'] as boolean;
+        (weights.querySelector('input[name="longrange-tank"]') as HTMLInputElement).checked = json['longrange-tank'] as boolean;
         refresh();
         refreshTools();
     }).catch(_ => {
@@ -939,7 +994,7 @@ const saveChanges = () => getUserData().then(u => {
     window.history.replaceState(null, '', url.href);
     const savedUrl = window.location.href;
     navigator.clipboard.writeText(savedUrl);
-    document.getElementById('url').innerHTML = `Saved and copied to clipboard: <textarea>${savedUrl}</textarea>`;
+    document.getElementById('url')!.innerHTML = `Saved and copied to clipboard: <textarea>${savedUrl}</textarea>`;
 });
 
 const recover = () => {
@@ -948,9 +1003,9 @@ const recover = () => {
     setUserData(query || (cookie ? decodeURIComponent(cookie[1]) : ''));
 };
 
-const regTandemInput = (container, a, b) => {
-    const ea = container.querySelector(a);
-    const eb = container.querySelector(b);
+const regTandemInput = (container: Element, a: string, b: string) => {
+    const ea = container.querySelector<HTMLElement>(a)!;
+    const eb = container.querySelector<HTMLElement>(b)!;
     ea.addEventListener('focus', () => {
         ea.classList.toggle('active');
         if (eb.classList.contains('active')) {
@@ -973,21 +1028,19 @@ const regTandemInput = (container, a, b) => {
     });
 }
 
-const tools = document.getElementById('tools');
-const env = document.getElementById('env');
+const tools = document.getElementById('tools')!;
+const env = document.getElementById('env')!;
 
 const initHoldingDiagram = () => {
-    console.log("hey");
-    const holdingDiagram = tools.querySelector('.h-diagram');
+    const holdingDiagram = tools.querySelector<SVGSVGElement>('.h-diagram')!;
     const strokeWidth = '2px';
     const ob = 45;
-    const polarX = (r, deg) => Math.sin(deg2rad(deg)) * r + 100;
-    const polarY = (r, deg) => 100 - Math.cos(deg2rad(deg)) * r;
-    const polardX = (r, deg) => Math.sin(deg2rad(deg)) * r;
-    const polardY = (r, deg) => Math.cos(deg2rad(deg)) * r;
+    const polarX = (r: number, deg: number) => Math.sin(deg2rad(deg)) * r + 100;
+    const polarY = (r: number, deg: number) => 100 - Math.cos(deg2rad(deg)) * r;
+    const polardX = (r: number, deg: number) => Math.sin(deg2rad(deg)) * r;
+    const polardY = (r: number, deg: number) => Math.cos(deg2rad(deg)) * r;
     const ibPath = document.createElementNS(holdingDiagram.namespaceURI, "path");
     const obPath = document.createElementNS(holdingDiagram.namespaceURI, "path");
-    const left = true;
     holdingDiagram.appendChild(ibPath);
     holdingDiagram.appendChild(obPath);
 
@@ -1005,14 +1058,14 @@ const initHoldingDiagram = () => {
     ibPath.setAttribute("d", `M ${ibx0},${iby0} L ${ibx1},${iby1}`);
     ibPath.setAttribute("stroke", "red");
     ibPath.setAttribute("stroke-width", strokeWidth);
-    ibPath.setAttribute("opacity", 1);
+    ibPath.setAttribute("opacity", "1");
     ibPath.setAttribute("fill", "none");
 
     obPath.classList = "outbound";
     obPath.setAttribute("d", `M ${obx0},${oby0} L ${obx1},${oby1}`);
     obPath.setAttribute("stroke", "red");
     obPath.setAttribute("stroke-width", strokeWidth);
-    obPath.setAttribute("opacity", 1);
+    obPath.setAttribute("opacity", "1");
     obPath.setAttribute("fill", "none");
 
 };
@@ -1025,13 +1078,13 @@ window.addEventListener('load', () => {
     recover();
     initHoldingDiagram();
 });
-const editable = document.querySelectorAll('table.main td div');
+const editable = document.querySelectorAll<HTMLElement>('table.main td div');
 for (let i = 0; i < editable.length; i++) {
     const e = editable[i];
     e.setAttribute('contenteditable', 'true');
-    const disabler = (event) => {
+    const disabler = (event: DragEvent) => {
         event.preventDefault();
-        event.dataTransfer.dropEffect = 'none';
+        event.dataTransfer!.dropEffect = 'none';
     };
     e.addEventListener('dragenter', disabler);
     e.addEventListener('dragover', disabler);
@@ -1043,8 +1096,8 @@ regTandemInput(tools, '.c-nm', '.c-sm');
 regTandemInput(tools, '.c-ft', '.c-m');
 regTandemInput(tools, '.c-lb', '.c-kg');
 regTandemInput(tools, '.fpm-rate', '.fpm-gradient');
-tools.querySelector('.fpm-rate').addEventListener('input', () => fpmSource = 'rate');
-tools.querySelector('.fpm-gradient').addEventListener('input', () => fpmSource = 'gradient');
+tools.querySelector('.fpm-rate')!.addEventListener('input', () => fpmSource = 'rate');
+tools.querySelector('.fpm-gradient')!.addEventListener('input', () => fpmSource = 'gradient');
 regTandemInput(env, '.qnh', '.press-alt');
 
 regUpdatable(document.querySelectorAll('#weights td .update'), refresh);

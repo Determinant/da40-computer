@@ -2,8 +2,10 @@
   <rect width="512" height="512" rx="96" fill="#1f2937"/>
   <style>
     @font-face {
-      font-family: "ocr-icon";
-      src: url("ocr-a-ext.woff") format("woff");
+      font-family: "B612";
+      src: url("../fonts/B612-Regular.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 400;
     }
   </style>
 
@@ -16,5 +18,5 @@
   <circle cx="256" cy="190" r="31" fill="#93c5fd" stroke="#fff" stroke-width="8"/>
   <circle cx="256" cy="190" r="10" fill="#1f2937"/>
 
-  <text x="256" y="452" fill="#fff" font-family="ocr-icon, 'OCR A Extended', monospace" font-size="80" font-weight="400" letter-spacing="4" text-anchor="middle">DA40</text>
+  <text x="256" y="452" fill="#fff" font-family="B612, sans-serif" font-size="80" font-weight="400" letter-spacing="4" text-anchor="middle">DA40</text>
 </svg>
