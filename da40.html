@@ -1,0 +1,602 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DA40 Computer</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script src="https://cdn.jsdelivr.net/gh/masotime/json-url@master/dist/browser/json-url.js"></script>
+    <style>
+@font-face {
+  font-family: "ocr";
+  src: url("./ocr-a-ext.woff") format('woff');
+}
+html {
+  width: 100%;
+  height: 100%;
+  font-size: 62.5%;
+}
+body {
+  font-family: "ocr", monospace;
+  font-size: 12px;
+  font-size: 1.2rem;
+}
+table.main {
+  margin-bottom: 10px;
+  width: 100%;
+  border: 2px solid black;
+  font-family: "ocr", monospace;
+  font-size: 12px;
+  letter-spacing: -1px;
+  border-collapse: collapse;
+}
+object.chart {
+  width: 600px;
+}
+div.title {
+  margin-bottom: 3em;
+}
+div.container{
+  margin: auto;
+}
+table.main td {
+  padding: 2px 5px 2px 5px;
+  text-align: center;
+  border: 1px solid;
+}
+
+div.row {
+  text-align: center;
+}
+
+h1 {
+  font-family: "ocr", monospace;
+  font-size: 20px;
+  margin: 0;
+  margin-bottom: 5px;
+}
+
+div.col3 {
+  width: 33%;
+  vertical-align: top;
+  display: inline-block;
+  margin: 0;
+}
+
+div.col1 {
+  display: inline-block;
+  width: 100%;
+}
+
+table.main tr.header td, table.main td.header {
+  border: 1px solid black;
+  color: white;
+  background-color: #666;
+}
+
+table.main tr.header0 td, table.main td.header0 {
+  border: 1px solid black;
+  color: white;
+  background-color: black;
+}
+
+table.main td.info {
+  border: 1px solid black;
+  color: black;
+  background-color: #C1D7AE;
+}
+
+table.main td input {
+  font-family: "ocr", monospace;
+  min-width: 1rem;
+}
+
+table.main tr.header td.bottom, table.main td.bottom {
+  border-bottom: 2px solid black;
+}
+table.main td.top {
+  border-top: 2px solid black;
+}
+table.main td.left {
+  border-left: 2px solid black;
+}
+table.main td.right {
+  border-right: 2px solid black;
+}
+table.main tr.even td.even {
+  background-color: #F7E9C4;
+}
+table.main td div {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.05),
+    rgba(0, 0, 0, 0.05) 2px,
+    rgba(0, 0, 0, 0.1) 2px,
+    rgba(0, 0, 0, 0.1) 4px
+      );
+}
+.gray {
+  background-color: #ccc;
+}
+.buttons button {
+  display: inline-block;
+}
+button {
+  font-family: "ocr", monospace;
+  font-size: 18px;
+  background-color: #fff;
+  color: #000;
+  border: 2px solid;
+  height: 30px;
+  width: 100px;
+}
+.buttons {
+  margin-top: 10px;
+  text-align: center;
+}
+.copyright, #url {
+  margin-top: 20px;
+  font-size: 12px;
+  font-family: "ocr", monospace;
+}
+
+.copyright {
+  text-align: right;
+}
+
+#url {
+  font-size: 12px;
+  margin: 10px auto;
+  color: red;
+  text-align: left;
+}
+#url > textarea {
+  font-family: "ocr", monospace;
+  font-size: 12px;
+  display: block;
+  height: 100px;
+  width: 100%;
+}
+  @media print {
+    body {
+      margin: 0;
+    }
+    .buttons {
+      display: none;
+    }
+  }
+
+  td.chHeader, td.altHeader {
+    min-width: 20px;
+  }
+
+  .mc, .wca, .mh, .ch, .ete, .eta, .rem, #rem0 {
+    color: #aaa;
+  }
+  .ok {
+    background-color: #689d6a !important;
+  }
+  td.mass-wrapper, td.cg-wrapper {
+    background-color: #cc241d;
+  }
+  .weight-label {
+    width: 75px;
+  }
+  .weight-value {
+    width: 30px;
+  }
+  .env-label {
+    width: 130px;
+  }
+  .env-value {
+    width: 40px;
+  }
+  .outputs-label {
+    width: 120px;
+  }
+  .outputs-value {
+    width: 60px;
+  }
+  table.main tr td:first-child {
+    text-align: right;
+  }
+  table.main tr.header0 td {
+    text-align: center;
+  }
+  input[type="checkbox"] {
+    margin: 2px;
+  }
+  .e6b {
+    width: 0px;
+  }
+  .wind {
+    min-width: 50px;
+    display: flex;
+  }
+  .wind .dir {
+    flex: 1.5;
+    display: inline-block;
+  }
+  .wind .vel {
+    flex: 1;
+    display: inline-block;
+  }
+  .holding {
+    min-width: 50px;
+    display: flex;
+  }
+  .holding .h-out {
+    flex: 1;
+    display: inline-block;
+  }
+  .holding .h-in {
+    flex: 1;
+    display: inline-block;
+  }
+  .tas {
+    min-width: 25px;
+  }
+  .d-slope {
+    display: inline-block;
+    width: 20px;
+  }
+
+@media (max-width: 600px) {
+  body {
+    font-size: 18px;
+    font-size: 1.2rem;
+  }
+  table.main {
+    font-size: 18px;
+  }
+  div.col3 {
+    display: block;
+  }
+  object.chart {
+    width: 100%;
+  }
+  .weight-label {
+    width: 130px;
+  }
+}
+
+  </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row title">
+        <h1>DA40 Computer</h1>
+      </div>
+      <div class="row">
+        <div class="col3" style="width: auto">
+          <table class="main" id="weights">
+            <tr class="header0">
+              <td colspan="3">Weights</td>
+            </tr>
+            <tr class="header">
+              <td colspan="2" style="text-align: left;">
+                <input type="checkbox" class="update" name="mam-40-227" checked><span>MÄM 40-227</span><br>
+                <input type="checkbox" class="update" name="longrange-tank"><span>Long-range Tank</span>
+              </td>
+              <td>Moment</td>
+            </tr>
+            <tr>
+              <td class="weight-label">Empty Weight</td>
+              <td class="weight-value"><div class="empty-mass update max8"></div></td>
+              <td><div class="empty-moment update max8"></div></td>
+            </tr>
+            <tr>
+              <td>Front Seat L</td>
+              <td><div class="front-left-mass update max3"></div></td>
+              <td><span class="front-left-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Front Seat R</td>
+              <td><div class="front-right-mass update max3"></div></td>
+              <td><span class="front-right-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Rear Seat L</td>
+              <td><div class="rear-left-mass update max3"></div></td>
+              <td><span class="rear-left-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Rear Seat R</td>
+              <td><div class="rear-right-mass update max3"></div></td>
+              <td><span class="rear-right-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Std. Baggage</td>
+              <td><div class="baggage-std-mass update max3"></div></td>
+              <td><span class="baggage-std-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Baggage Tube</td>
+              <td><div class="baggage-tube-mass update max3"></div></td>
+              <td><span class="baggage-tube-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Ext. Forward</td>
+              <td><div class="baggage-ext-forward-mass update max3"></div></td>
+              <td><span class="baggage-ext-forward-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Ext. Aft</td>
+              <td><div class="baggage-ext-aft-mass update max3"></div></td>
+              <td><span class="baggage-ext-aft-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Fuel (gal)</td>
+              <td><div class="fuel-vol update max2"></div></td>
+              <td><span class="fuel-moment"></span></td>
+            </tr>
+            <tr>
+              <td>Total (lb)</td>
+              <td><span class="total-mass"></span></td>
+              <td><span class="total-moment"></moment></td>
+            </tr>
+          </table>
+          <table class="main" id="env">
+            <tr class="header0">
+              <td colspan="2">Environment</td>
+            </tr>
+            <tr class="header">
+              <td colspan="2"></td>
+            </tr>
+            <tr>
+              <td class="env-label">OAT (°C)</td>
+              <td class="env-value"><div class="oat update max2">15</div></td>
+            </tr>
+            <tr>
+              <td>QNH (inhg)</td>
+              <td><div class="qnh update max6">29.92</div></td>
+            </tr>
+            <tr>
+              <td>Headwind (kts)</td>
+              <td><div class="headwind update max3">0</div></td>
+            </tr>
+            <tr>
+              <td>Elevation (ft)</td>
+              <td><div class="field-alt update max6">0</div></td>
+            </tr>
+            <tr>
+              <td>Obstacle (ft)</td>
+              <td><div class="obst update max2">50</div></td>
+            </tr>
+            <tr class="header">
+              <td colspan="2"></td>
+            </tr>
+            <tr>
+              <td>Pressure Alt. (ft)</td>
+              <td><div class="press-alt update max6"></div></td>
+            </tr>
+            <tr>
+              <td>Density Alt. (ft)</td>
+              <td><span class="density-alt"></span></td>
+            </tr>
+          </table>
+        </div>
+        <div class="col3" style="width: auto">
+          <table class="main" id="outputs">
+            <tr class="header0">
+              <td colspan="2">Aircraft Data</td>
+            </tr>
+            <tr class="header">
+              <td colspan="2"></td>
+            </tr>
+            <tr>
+              <td class="outputs-label">Weight (lb)</td>
+              <td class="outputs-value mass-wrapper"><span class="total-mass"></span></td>
+            </tr>
+            <tr>
+              <td>CG (inch)</td>
+              <td class="cg-wrapper"><span class="cg"></span></td>
+            </tr>
+            <tr>
+              <td>Vy [T/O] (kts)</td>
+              <td><span class="vy"></span></td>
+            </tr>
+            <tr>
+              <td>Climb [UP] (kts)</td>
+              <td><span class="vclimb"></span></td>
+            </tr>
+            <tr>
+              <td>Vg (kts)</td>
+              <td><span class="vg"></span></td>
+            </tr>
+            <tr>
+              <td>Vapp [LDG,T/O,UP] (kts)</td>
+              <td>
+                <span class="vapp"></span>
+              </td>
+            </tr>
+            <tr>
+              <td>Va (kts)</td>
+              <td><span class="va"></span></td>
+            </tr>
+            <tr>
+              <td>T/O Dist. (ft)</td>
+              <td><span class="takeoff"></span></td>
+            </tr>
+            <tr>
+              <td>LDG Dist. (ft)</td>
+              <td><span class="landing"></span></td>
+            </tr>
+            <tr>
+              <td>Vy ↑ (fpm)</td>
+              <td><span class="takeoff-climb"></span></td>
+            </tr>
+            <tr>
+              <td>Vy ↑ (ft/NM)</td>
+              <td><span class="takeoff-climb-gradient"></span></td>
+            </tr>
+            <tr>
+              <td>Climb ↑ (fpm)</td>
+              <td><span class="cruise-climb"></span></td>
+            </tr>
+            <tr>
+              <td>Climb ↑ (ft/NM)</td>
+              <td><span class="cruise-climb-gradient"></span></td>
+            </tr>
+          </table>
+        </div>
+        <div class="col3" style="width: auto">
+          <table class="main" id="tools">
+            <tr class="header0">
+              <td colspan="4">General Tools</td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">Wind Components</td>
+            </tr>
+            <tr>
+              <td>Wind</td>
+              <td><span class="wind"><div class="dir wc-dir update max3"></div>@<div class="vel wc-vel update max2"></div></span></td>
+              <td>Rwy</td>
+              <td><div class="wc-rwy update max2"></div></td>
+            </tr>
+            <tr>
+              <td>Xwind.</td>
+              <td><span class="wc-cross"></span></td>
+              <td>Hwind.</td>
+              <td><span class="wc-head"></span></td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">FPM to ft/NM</td>
+            </tr>
+            <tr>
+              <td>GS</td>
+              <td><div class="fpm-gs update max3"></div></td>
+              <td>FPM</td>
+              <td><div class="fpm-rate update max4"></div></td>
+            </tr>
+            <tr>
+              <td>ft/NM</td>
+              <td><div class="fpm-gradient update max6"></div></td>
+              <td colspan="2"></td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">Descent (slope =<div class="d-slope update max2">3</div>°)</td>
+            </tr>
+            <tr>
+              <td>GS</td>
+              <td><div class="d-gs update max3"></div></td>
+              <td>dRate</td>
+              <td><span class="d-rate"></span></td>
+            </tr>
+            <tr>
+              <td>ΔH</td>
+              <td><div class="d-alt update max6"></div></td>
+              <td>Dist.</td>
+              <td><span class="d-dist"></span></td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">Holding Pattern</td>
+            </tr>
+            <tr>
+              <td>Out/In</td>
+              <td><span class="holding"><div class="h-out update max3"></div>/<div class="h-in update max3"></div></span></td>
+              <td>Hdg</td>
+              <td><div class="h-hdg update max3"></div></td>
+            </tr>
+            <tr>
+              <td colspan="2"><input type="checkbox" class="h-left update"><span>Left</span></td>
+              <td>Type</td>
+              <td><span class="h-type"></span></td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">E6B</td>
+            </tr>
+            <tr>
+              <td class="e6b">Course</td>
+              <td><div class="tc update max3"></div></td>
+              <td class="e6b">TAS</td>
+              <td><div class="tas update max3"></div></td>
+            </tr>
+            <tr>
+              <td>Wind</td>
+              <td><span class="wind"><div class="dir windir update max3"></div>@<div class="vel winvel update max2"></div></span></td>
+              <td>Var</td>
+              <td><div class="vr update max3"></div></td>
+            </tr>
+            <tr>
+              <td>Hdg</td>
+              <td><span class="hdg"></span></td>
+              <td>GS</td>
+              <td><span class="gs"></span></td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">Std. Rate Turn</td>
+            </tr>
+            <tr>
+              <td>TAS</td>
+              <td><div class="t-tas update max3"></div></td>
+              <td>Bank</td>
+              <td><span class="t-bank"></span></td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">Unit Conversions</td>
+            </tr>
+            <tr>
+              <td>°C</td>
+              <td><div class="c-cel update max4"></div></td>
+              <td>°F</td>
+              <td><div class="c-fah update max4"></div></td>
+            </tr>
+            <tr>
+              <td>NM/kts</td>
+              <td><div class="c-nm update max4"></div></td>
+              <td>SM/mph</td>
+              <td><div class="c-sm update max4"></div></td>
+            </tr>
+            <tr>
+              <td>feet</td>
+              <td><div class="c-ft update max6"></div></td>
+              <td>m</td>
+              <td><div class="c-m update max6"></div></td>
+            </tr>
+            <tr>
+              <td>lb</td>
+              <td><div class="c-lb update max4"></div></td>
+              <td>kg</td>
+              <td><div class="c-kg update max4"></div></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="buttons">
+        <button onclick="saveChanges();">Save</button>
+      </div>
+      <div class="row">
+        <div id="url">
+        </div>
+      </div>
+      <div class="row">
+        <object class="chart" data="takeoff-chart.svg" type="image/svg+xml" id="takeoff"></object>
+      </div>
+      <div class="row">
+        <object class="chart" data="landing-chart.svg" type="image/svg+xml" id="landing"></object>
+      </div>
+      <div class="row">
+        <object class="chart" data="takeoff-climb-chart.svg" type="image/svg+xml" id="takeoff-climb"></object>
+      </div>
+      <div class="row">
+        <object class="chart" data="cruise-climb-chart.svg" type="image/svg+xml" id="cruise-climb"></object>
+      </div>
+      <div class="row">
+        <div class="copyright">
+          2023 Ted Yin &lt;tederminant@gmail.com&gt;, MIT License.
+        </div>
+      </div>
+    </div>
+    <script src="da40.js">
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+      }
+    </script>
+  </body>
+</html>

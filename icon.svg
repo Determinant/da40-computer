@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1f2937"/>
+  <style>
+    @font-face {
+      font-family: "ocr-icon";
+      src: url("ocr-a-ext.woff") format("woff");
+    }
+  </style>
+
+  <!-- simplified three-blade constant-speed propeller mark -->
+  <g transform="translate(256 190)" fill="#fff">
+    <path d="M0 0C-17-22-29-57-24-101c3-25 12-46 24-49 13 3 21 24 24 49 5 44-7 79-24 101Z"/>
+    <path d="M0 0C-17-22-29-57-24-101c3-25 12-46 24-49 13 3 21 24 24 49 5 44-7 79-24 101Z" transform="rotate(120)"/>
+    <path d="M0 0C-17-22-29-57-24-101c3-25 12-46 24-49 13 3 21 24 24 49 5 44-7 79-24 101Z" transform="rotate(240)"/>
+  </g>
+  <circle cx="256" cy="190" r="31" fill="#93c5fd" stroke="#fff" stroke-width="8"/>
+  <circle cx="256" cy="190" r="10" fill="#1f2937"/>
+
+  <text x="256" y="452" fill="#fff" font-family="ocr-icon, 'OCR A Extended', monospace" font-size="80" font-weight="400" letter-spacing="4" text-anchor="middle">DA40</text>
+</svg>
