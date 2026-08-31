@@ -1,8 +1,11 @@
 {
   "name": "DA40 Computer",
   "short_name": "DA40",
+  "description": "DA40 weight, performance, navigation, and flight-planning calculator.",
+  "id": "./da40.html",
   "start_url": "./da40.html",
   "scope": "./",
+  "lang": "en",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
@@ -16,6 +19,12 @@
       "src": "assets/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

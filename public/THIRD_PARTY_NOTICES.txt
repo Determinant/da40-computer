@@ -1,0 +1,24 @@
+DA40 Computer third-party notices
+=================================
+
+B612 font
+---------
+
+The bundled B612 font is distributed under the SIL Open Font License 1.1.
+The complete license is in assets/fonts/B612-OFL.txt.
+
+Saved-link codec
+----------------
+
+The local saved-link codec uses json-url 4.0.0 (ISC), including its LZMA,
+MessagePack, and URL-safe Base64 paths. The application deploys only the
+browser entry point and chunks required by the LZMA codec. Webpack-generated
+license notices are retained beside those JavaScript files in
+assets/vendor/json-url/*.LICENSE.txt.
+
+Relevant upstream projects:
+
+- json-url: https://github.com/masotime/json-url
+- lzma 2.3.2: MIT, copyright 2016 Nathan Rugg
+- msgpack5 6.0.2: MIT, copyright 2014 Matteo Collina
+- urlsafe-base64 1.0.0: MIT, copyright 2014 RGBboy

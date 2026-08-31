@@ -65,7 +65,7 @@ test('single-curve paths go horizontally to the touch point', () => {
   assert.equal(path, 'M 10,20 H 22 L 22,20 L 28,25');
 });
 
-test('sampling can follow a curve back to the left', () => {
+test('range sampling preserves the requested endpoint order', () => {
   const samples = trace.sampleRange(0.8, 0.2, 10, (position) => ({
     x: position,
     y: position * 2,
@@ -85,6 +85,43 @@ test('no-intersection paths stop after the honest horizontal extension', () => {
     samples: [{ x: 30, y: 25 }],
   });
   assert.equal(path, 'M 10,20 H 30');
+});
+
+test('conservative pass-through crosses the panel without inventing a curve', () => {
+  const elements = fakeElements();
+  elements.inputGuide.setAttribute('d', 'old-input-guide');
+  elements.outputGuide.setAttribute('d', 'old-output-guide');
+  elements.marker.setAttribute('d', 'old-marker');
+
+  const exit = trace.renderPassThrough(elements, { x: 10, y: 20 }, 30);
+
+  assert.equal(elements.curve.attributes.get('d'), 'M 10,20 H 30');
+  assert.equal(elements.inputGuide.attributes.get('d'), '');
+  assert.equal(elements.outputGuide.attributes.get('d'), '');
+  assert.equal(elements.marker.attributes.get('d'), '');
+  assert.deepEqual({ ...exit }, { x: 30, y: 20, valid: true });
+});
+
+test('conservative clamp visibly bridges to the lowest published curve', () => {
+  const elements = fakeElements();
+  const curve = linearCurve(20, 30);
+  const exit = trace.renderClampToCurve({
+    elements,
+    coord: linearCoordinates,
+    curve,
+    x: 0.5,
+    canvasY: 25,
+    entry: { x: -10, y: 10 },
+  });
+
+  assert.match(elements.curve.attributes.get('d'), /^M 0,20 /);
+  assert.match(elements.curve.attributes.get('d'), /L 50,25$/);
+  assert.equal(
+    elements.inputGuide.attributes.get('d'),
+    'M -10,10 H 0 V 20 M 50,0 V 25',
+  );
+  assert.equal(elements.outputGuide.attributes.get('d'), 'M 50,25 H 100');
+  assert.deepEqual({ ...exit }, { x: 100, y: 25, valid: true });
 });
 
 test('first-panel paths begin directly at their first sample', () => {
@@ -116,7 +153,7 @@ test('range checks work in either curve direction', () => {
   assert.equal(trace.betweenInclusive(9, 8, 2), false);
 });
 
-test('rendering below the lowest curve goes to the touch and traces back left', () => {
+test('rendering rejects a boundary curve reached after the selected input', () => {
   const elements = fakeElements();
   const curve = linearCurve(20, 10);
   const exit = trace.render({
@@ -127,15 +164,35 @@ test('rendering below the lowest curve goes to the touch and traces back left', 
     curveIndex: 0,
     curveMark: 0.2,
     output: 0.1,
-    ratio: Number.NEGATIVE_INFINITY,
+    ratio: 0,
     x: 0.2,
     canvasY: 18,
     entry: { x: -10, y: 15 },
   });
+  assert.equal(elements.curve.attributes.get('d'), 'M -10,15 H 100');
+  assert.equal(exit.valid, false);
+});
+
+test('rendering follows a boundary curve reached before the selected input', () => {
+  const elements = fakeElements();
+  const curve = linearCurve(20, 10);
+  const exit = trace.render({
+    elements,
+    coord: linearCoordinates,
+    curves: [curve],
+    previousCurveIndex: 0,
+    curveIndex: 0,
+    curveMark: 0.2,
+    output: 0.1,
+    ratio: 0,
+    x: 0.8,
+    canvasY: 12,
+    entry: { x: -10, y: 15 },
+  });
   const path = elements.curve.attributes.get('d');
   assert.match(path, /^M -10,15 H 50 L 50,15 /);
-  assert.match(path, /L 20,18$/);
-  assert.deepEqual({ ...exit }, { x: 100, y: 18 });
+  assert.match(path, /L 80,12$/);
+  assert.deepEqual({ ...exit }, { x: 100, y: 12, valid: true });
 });
 
 test('rendering an interpolation stays connected and ends at the calculated point', () => {
@@ -161,10 +218,10 @@ test('rendering an interpolation stays connected and ends at the calculated poin
   assert.equal(elements.outputGuide.attributes.get('d'), 'M 60,36 H 100');
 });
 
-test('rendering without a real curve intersection never invents a vertical join', () => {
+test('rendering without a real curve intersection marks the calculation invalid', () => {
   const elements = fakeElements();
   const curve = linearCurve(20, 10);
-  trace.render({
+  const exit = trace.render({
     elements,
     coord: linearCoordinates,
     curves: [curve],
@@ -172,10 +229,14 @@ test('rendering without a real curve intersection never invents a vertical join'
     curveIndex: 0,
     curveMark: 0.2,
     output: 0.1,
-    ratio: Number.NEGATIVE_INFINITY,
+    ratio: 0,
     x: 0.2,
     canvasY: 18,
     entry: { x: -10, y: 25 },
   });
   assert.equal(elements.curve.attributes.get('d'), 'M -10,25 H 100');
+  assert.equal(elements.inputGuide.attributes.get('d'), '');
+  assert.equal(elements.outputGuide.attributes.get('d'), '');
+  assert.equal(elements.marker.attributes.get('d'), '');
+  assert.equal(exit.valid, false);
 });

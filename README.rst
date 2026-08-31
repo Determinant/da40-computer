@@ -1,16 +1,30 @@
 DA40 Computer
 =============
 
-See https://navlog.tedyin.com/ to try it out.
+See https://da40.tedyin.com/ to try it out.
 
-Clicking ``Save`` generates a URL containing the current navlog inputs so it
-can be kept or shared. After editing an existing saved URL, click ``Save``
+Clicking ``Save`` generates a URL containing the current calculator inputs, so
+it can be kept or shared. After editing an existing saved URL, click ``Save``
 again and copy the updated link.
+
+Offline installation
+--------------------
+
+Load the site once while online and wait for the ``Ready for offline use``
+message. It can then be installed from the browser's install menu on Android,
+or with ``Add to Home Screen`` on iPhone and iPad. The installed app includes
+the calculator, charts, font, icons, and saved-link codec, so those features do
+not need a network connection. Production deployments must use HTTPS; local
+development on ``localhost`` is the browser-supported exception.
+
+The app requests persistent browser storage when launched as an installed app.
+Browsers and users can still clear site data, so the offline copy should not be
+treated as permanent storage.
 
 Development
 -----------
 
-Install the development dependency and build the site::
+Install the development dependencies and build the site::
 
   npm install
   npm run build
@@ -23,23 +37,33 @@ Open the URL printed by the server. It starts at port 8000 and automatically
 tries the next port when that one is occupied. Set ``DA40_PORT`` to choose a
 different starting port.
 
-The build writes the deployable static site to ``dist/`` and verifies its
-offline-cache, manifest paths, and chart-trace behavior. Run ``npm run check``
-to type-check the TypeScript sources without emitting files, or ``npm test``
-to run the regression tests directly.
+The build writes the deployable static site to ``dist/``, vendors the pinned
+state codec, and generates a content-versioned service-worker cache containing
+every deployable file. Verification covers the offline lifecycle, manifest and
+icon metadata, local runtime resources, codec behavior, and chart tracing. Run
+``npm run check`` to type-check the TypeScript sources without emitting files,
+or ``npm test`` to run the calculator and chart regression tests directly.
 
 Project layout
 --------------
 
 ``src/``
-  TypeScript application and atmospheric-calculator sources.
+  TypeScript application sources. Only the explicit entries in
+  ``tsconfig.json`` are emitted into the app.
 
 ``public/``
-  HTML, service worker, web manifest, fonts, icons, and chart assets copied
-  into the build unchanged.
+  HTML, service-worker template, web manifest, fonts, icons, and chart assets.
 
 ``scripts/``
-  Small Node.js helpers used by the npm build.
+  Node.js build helpers, including service-worker generation and verification.
 
 ``tests/``
-  Node.js regression tests for chart tracing and DA40 calculation helpers.
+  Node.js regression tests for the offline lifecycle, chart tracing, and DA40
+  calculation helpers.
+
+License
+-------
+
+DA40 Computer is available under the MIT License; see ``LICENSE``. Licenses
+and attributions for the bundled font and saved-link codec are retained with
+the deployed assets and summarized in ``public/THIRD_PARTY_NOTICES.txt``.

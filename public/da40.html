@@ -1,14 +1,17 @@
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>DA40 Computer</title>
+    <meta name="description" content="DA40 weight, performance, navigation, and flight-planning calculator.">
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="DA40">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-    <script src="https://cdn.jsdelivr.net/gh/masotime/json-url@master/dist/browser/json-url.js"></script>
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon-180.png">
     <style>
 @font-face {
   font-family: "B612";
@@ -24,7 +27,6 @@ html {
 }
 body {
   font-family: "B612", sans-serif;
-  font-size: 12px;
   font-size: 1.2rem;
 }
 table.main {
@@ -68,10 +70,11 @@ div.col3 {
   display: inline-block;
   margin: 0;
 }
-
-div.col1 {
-  display: inline-block;
-  width: 100%;
+.summary-grid > .col3 {
+  width: auto;
+}
+.checkbox-options {
+  text-align: left;
 }
 
 table.main tr.header td, table.main td.header {
@@ -86,33 +89,18 @@ table.main tr.header0 td, table.main td.header0 {
   background-color: black;
 }
 
-table.main td.info {
-  border: 1px solid black;
-  color: black;
-  background-color: #C1D7AE;
-}
-
 table.main td input {
   font-family: "B612", sans-serif;
   min-width: 1rem;
 }
 
-table.main tr.header td.bottom, table.main td.bottom {
-  border-bottom: 2px solid black;
-}
-table.main td.top {
-  border-top: 2px solid black;
-}
 table.main td.left {
   border-left: 2px solid black;
 }
 table.main td.right {
   border-right: 2px solid black;
 }
-table.main tr.even td.even {
-  background-color: #F7E9C4;
-}
-table.main td div {
+table.main td div.update {
   background: repeating-linear-gradient(
     45deg,
     rgba(0, 0, 0, 0.05),
@@ -163,96 +151,109 @@ button {
   height: 100px;
   width: 100%;
 }
-  td.chHeader, td.altHeader {
-    min-width: 20px;
-  }
-
-  .mc, .wca, .mh, .ch, .ete, .eta, .rem, #rem0 {
-    color: #aaa;
-  }
-  .ok {
-    background-color: #689d6a !important;
-  }
-  td.mass-wrapper, td.cg-wrapper {
-    background-color: #cc241d;
-  }
-  #weights td:first-child {
-    min-width: 90px;
-    white-space: nowrap;
-  }
-  #weights td:nth-child(2) {
-    min-width: 8ch;
-  }
-  #weights td:nth-child(3) {
-    min-width: 9ch;
-  }
-  .env-label {
-    width: 130px;
-  }
-  .env-value {
-    width: 40px;
-  }
-  #outputs td:first-child {
-    min-width: 150px;
-    white-space: nowrap;
-  }
-  .outputs-value {
-    width: 60px;
-  }
-  #tools td:nth-child(2),
-  #tools td:nth-child(4) {
-    min-width: 50px;
-    width: 50px;
-  }
-  table.main tr td:first-child {
-    text-align: right;
-  }
-  table.main tr.header0 td {
-    text-align: center;
-  }
-  input[type="checkbox"] {
-    margin: 2px;
-  }
-  .e6b {
-    width: 0px;
-  }
-  .wind {
-    min-width: 50px;
-    display: flex;
-  }
-  .wind .dir {
-    flex: 1.5;
-    display: inline-block;
-  }
-  .wind .vel {
-    flex: 1;
-    display: inline-block;
-  }
-  .holding {
-    min-width: 50px;
-    display: flex;
-  }
-  .holding .h-out {
-    flex: 1;
-    display: inline-block;
-  }
-  .holding .h-in {
-    flex: 1;
-    display: inline-block;
-  }
-  .tas {
-    min-width: 25px;
-  }
-  .d-slope {
-    display: inline-block;
-    width: 20px;
-  }
+.pwa-status {
+  position: fixed;
+  z-index: 1000;
+  right: 12px;
+  bottom: 12px;
+  max-width: min(360px, calc(100vw - 48px));
+  padding: 8px 12px;
+  border: 1px solid #4b5563;
+  border-radius: 6px;
+  color: #fff;
+  background: #1f2937;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.pwa-status[hidden] {
+  display: none;
+}
+.ok {
+  background-color: #689d6a !important;
+}
+td.mass-wrapper, td.cg-wrapper {
+  background-color: #cc241d;
+}
+#weights td:first-child {
+  min-width: 90px;
+  white-space: nowrap;
+}
+#weights td:nth-child(2) {
+  min-width: 8ch;
+}
+#weights td:nth-child(3) {
+  min-width: 9ch;
+}
+.env-label {
+  width: 130px;
+}
+.env-value {
+  width: 40px;
+}
+#outputs td:first-child {
+  min-width: 150px;
+  white-space: nowrap;
+}
+.outputs-value {
+  width: 60px;
+}
+#tools td:nth-child(2),
+#tools td:nth-child(4) {
+  min-width: 50px;
+  width: 50px;
+}
+table.main tr td:first-child {
+  text-align: right;
+}
+table.main tr.header0 td {
+  text-align: center;
+}
+input[type="checkbox"] {
+  margin: 2px;
+}
+.e6b {
+  width: 0px;
+}
+.wind {
+  min-width: 50px;
+  display: flex;
+}
+.wind .dir {
+  flex: 1.5;
+  display: inline-block;
+}
+.wind .vel {
+  flex: 1;
+  display: inline-block;
+}
+.holding {
+  min-width: 50px;
+  display: flex;
+}
+.holding .h-out {
+  flex: 1;
+  display: inline-block;
+}
+.holding .h-in {
+  flex: 1;
+  display: inline-block;
+}
+.tas {
+  min-width: 25px;
+}
+.d-slope {
+  display: inline-block;
+  width: 20px;
+}
+#tools td.ep-mixture {
+  white-space: nowrap;
+  text-align: center;
+}
+#tools td.ep-result {
+  white-space: nowrap;
+  text-align: center;
+}
 
 @media (max-width: 600px) {
-  body {
-    font-size: 18px;
-    font-size: 1.2rem;
-  }
   table.main {
     font-size: 18px;
   }
@@ -315,7 +316,7 @@ button {
 
   .summary-grid > .col3 {
     display: block;
-    width: auto !important;
+    width: auto;
     min-width: 0;
   }
 
@@ -340,7 +341,7 @@ button {
     border-width: 0.2mm;
   }
 
-  table.main td div {
+  table.main td div.update {
     min-height: 0.9em;
     background: #f2f2f2 !important;
   }
@@ -380,7 +381,8 @@ button {
   }
 
   .buttons,
-  #url {
+  #url,
+  .pwa-status {
     display: none !important;
   }
 
@@ -418,26 +420,27 @@ button {
   </style>
   </head>
   <body>
+    <div id="pwa-status" class="pwa-status" role="status" aria-live="polite" hidden></div>
     <div class="container">
       <div class="row title">
         <h1>DA40 Computer</h1>
       </div>
       <div class="row summary-grid">
-        <div class="col3" style="width: auto">
+        <div class="col3">
           <table class="main" id="weights">
             <tr class="header0">
               <td colspan="3">Weights</td>
             </tr>
             <tr class="header">
-              <td colspan="2" style="text-align: left;">
+              <td class="checkbox-options" colspan="2">
                 <input type="checkbox" class="update" name="mam-40-227" checked><span>MÄM 40-227</span><br>
                 <input type="checkbox" class="update" name="longrange-tank"><span>Long-range Tank</span>
               </td>
               <td>Moment</td>
             </tr>
             <tr>
-              <td class="weight-label">Empty Weight</td>
-              <td class="weight-value"><div class="empty-mass update max8"></div></td>
+              <td>Empty Weight</td>
+              <td><div class="empty-mass update max8"></div></td>
               <td><div class="empty-moment update max8"></div></td>
             </tr>
             <tr>
@@ -488,7 +491,7 @@ button {
             <tr>
               <td>Total (lb)</td>
               <td><span class="total-mass"></span></td>
-              <td><span class="total-moment"></moment></td>
+              <td><span class="total-moment"></span></td>
             </tr>
           </table>
           <table class="main" id="env">
@@ -500,7 +503,7 @@ button {
             </tr>
             <tr>
               <td class="env-label">OAT (°C)</td>
-              <td class="env-value"><div class="oat update max2">15</div></td>
+              <td class="env-value"><div class="oat update max3">15</div></td>
             </tr>
             <tr>
               <td>QNH (inhg)</td>
@@ -531,7 +534,7 @@ button {
             </tr>
           </table>
         </div>
-        <div class="col3" style="width: auto">
+        <div class="col3">
           <table class="main" id="outputs">
             <tr class="header0">
               <td colspan="2">Aircraft Data</td>
@@ -540,7 +543,7 @@ button {
               <td colspan="2"></td>
             </tr>
             <tr>
-              <td class="outputs-label">Weight (lb)</td>
+              <td>Weight (lb)</td>
               <td class="outputs-value mass-wrapper"><span class="total-mass"></span></td>
             </tr>
             <tr>
@@ -583,17 +586,34 @@ button {
             </tr>
           </table>
         </div>
-        <div class="col3" style="width: auto">
+        <div class="col3">
           <table class="main" id="tools">
             <tr class="header0">
               <td colspan="4">General Tools</td>
+            </tr>
+            <tr class="header">
+              <td colspan="4">Engine Performance</td>
+            </tr>
+            <tr>
+              <td>ISA (ft)</td>
+              <td><div class="ep-alt update max6">0</div></td>
+              <td>RPM</td>
+              <td><div class="ep-rpm update max4">2400</div></td>
+            </tr>
+            <tr>
+              <td>inHg</td>
+              <td><div class="ep-mp update max6">24</div></td>
+              <td class="ep-result" colspan="2"><span class="ep-output"></span></td>
+            </tr>
+            <tr>
+              <td class="ep-mixture" colspan="4"><input type="checkbox" class="ep-best-power update"><span>Best Power mixture (off = Best Economy)</span></td>
             </tr>
             <tr class="header">
               <td colspan="4">Wind Components</td>
             </tr>
             <tr>
               <td>Wind</td>
-              <td><span class="wind"><div class="dir wc-dir update max3"></div>@<div class="vel wc-vel update max2"></div></span></td>
+              <td><div class="wind"><div class="dir wc-dir update max3"></div>@<div class="vel wc-vel update max2"></div></div></td>
               <td>Rwy</td>
               <td><div class="wc-rwy update max2"></div></td>
             </tr>
@@ -623,7 +643,7 @@ button {
             <tr>
               <td>GS</td>
               <td><div class="d-gs update max3"></div></td>
-              <td>dRate</td>
+              <td>↓Rate</td>
               <td><span class="d-rate"></span></td>
             </tr>
             <tr>
@@ -637,7 +657,7 @@ button {
             </tr>
             <tr>
               <td>Out/In</td>
-              <td><span class="holding"><div class="h-out update max3"></div>/<div class="h-in update max3"></div></span></td>
+              <td><div class="holding"><div class="h-out update max3"></div>/<div class="h-in update max3"></div></div></td>
               <td>Hdg</td>
               <td><div class="h-hdg update max3"></div></td>
             </tr>
@@ -657,8 +677,8 @@ button {
             </tr>
             <tr>
               <td>Wind</td>
-              <td><span class="wind"><div class="dir windir update max3"></div>@<div class="vel winvel update max2"></div></span></td>
-              <td>Var</td>
+              <td><div class="wind"><div class="dir windir update max3"></div>@<div class="vel winvel update max2"></div></div></td>
+              <td>E−/W+</td>
               <td><div class="vr update max3"></div></td>
             </tr>
             <tr>
@@ -707,7 +727,7 @@ button {
         </div>
       </div>
       <div class="buttons">
-        <button onclick="saveChanges();">Save</button>
+        <button id="save" type="button">Save</button>
       </div>
       <div class="row">
         <div id="url">
@@ -729,16 +749,15 @@ button {
       </div>
       <div class="row">
         <div class="copyright">
-          2023 Ted Yin &lt;tederminant@gmail.com&gt;, MIT License.
+          © 2023 Ted Yin &lt;tederminant@gmail.com&gt;.
+          <a href="LICENSE.txt">MIT License</a>.
+          <a href="THIRD_PARTY_NOTICES.txt">Third-party notices</a>.
         </div>
       </div>
     </div>
+    <script src="assets/vendor/json-url/json-url.js"></script>
     <script src="assets/js/chart-trace.js"></script>
     <script src="assets/js/da40.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-      }
-    </script>
+    <script src="assets/js/pwa.js"></script>
   </body>
 </html>

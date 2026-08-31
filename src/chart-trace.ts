@@ -4,6 +4,10 @@ namespace ChartTrace {
         y: number;
     };
 
+    export type RenderResult = Point & {
+        valid: boolean;
+    };
+
     export type Mode = 'interpolated' | 'curve' | 'no-intersection';
 
     export type PathOptions = {
@@ -43,6 +47,15 @@ namespace ChartTrace {
         x: number;
         canvasY: number;
         entry: Point | null;
+    };
+
+    export type ClampOptions = {
+        elements: Elements;
+        coord: Coordinates;
+        curve: SVGGeometryElement;
+        x: number;
+        canvasY: number;
+        entry: Point;
     };
 
     export const nearlyEqual = (a: number, b: number, tolerance = 1e-9) =>
@@ -101,6 +114,73 @@ namespace ChartTrace {
             }
         }
         return commands.join(' ');
+    };
+
+    const clearExit = (elements: Elements) => {
+        elements.inputGuide.setAttribute('d', '');
+        elements.outputGuide.setAttribute('d', '');
+        elements.marker.setAttribute('d', '');
+    };
+
+    const renderExit = (
+        elements: Elements,
+        coord: Coordinates,
+        selectedX: number,
+        canvasY: number,
+        inputPrefix = '',
+    ): RenderResult => {
+        const verticalGuide = `M ${selectedX},${coord.getCanvasY(0)} V ${canvasY}`;
+        elements.inputGuide.setAttribute(
+            'd',
+            inputPrefix ? `${inputPrefix} ${verticalGuide}` : verticalGuide,
+        );
+        const panelRightX = coord.getCanvasX(1);
+        elements.outputGuide.setAttribute('d', `M ${selectedX},${canvasY} H ${panelRightX}`);
+        const radius = elements.markerRadius;
+        elements.marker.setAttribute(
+            'd',
+            `M ${selectedX - radius},${canvasY} a ${radius},${radius} 0 1,0 ${radius * 2},0 ` +
+            `a ${radius},${radius} 0 1,0 ${-radius * 2},0`,
+        );
+        return { x: panelRightX, y: canvasY, valid: true };
+    };
+
+    export const renderPassThrough = (
+        elements: Elements,
+        entry: Point,
+        panelRightX: number,
+    ): RenderResult => {
+        elements.curve.setAttribute('d', `M ${entry.x},${entry.y} H ${panelRightX}`);
+        clearExit(elements);
+        return { x: panelRightX, y: entry.y, valid: true };
+    };
+
+    export const renderClampToCurve = ({
+        elements,
+        coord,
+        curve,
+        x,
+        canvasY,
+        entry,
+    }: ClampOptions): RenderResult => {
+        const selectedX = coord.getCanvasX(x);
+        const curveStart = coord.getPointAtX(curve, 0);
+        const samples = sampleRange(0, x, 48, (sampleX) => {
+            const point = coord.getPointAtX(curve, sampleX);
+            return { x: point.x, y: point.y };
+        });
+        elements.curve.setAttribute(
+            'd',
+            samples.map((point, index) =>
+                `${index === 0 ? 'M' : 'L'} ${point.x},${point.y}`).join(' '),
+        );
+        return renderExit(
+            elements,
+            coord,
+            selectedX,
+            canvasY,
+            `M ${entry.x},${entry.y} H ${curveStart.x} V ${curveStart.y}`,
+        );
     };
 
     const setSvgAttributes = (element: SVGElement, attributes: Record<string, string>) => {
@@ -165,7 +245,7 @@ namespace ChartTrace {
         x,
         canvasY,
         entry,
-    }: RenderOptions): Point => {
+    }: RenderOptions): RenderResult => {
         const previousCurve = curves[previousCurveIndex];
         const curve = curves[curveIndex];
         const panelLeftX = coord.getCanvasX(0);
@@ -187,6 +267,15 @@ namespace ChartTrace {
                 const curveTouch = coord.getPointAtCanvasY(curve, targetY);
                 touch = { x: curveTouch.x, y: curveTouch.y };
                 traceStartX = Math.max(0, Math.min(1, coord.getX(curveTouch.x)));
+                // Nomographs are traversed from left to right. If the chosen
+                // input lies before the horizontal line reaches this boundary
+                // curve, following the curve backward would invent a
+                // correction that is not present in the AFM.
+                const traceDirectionTolerance = 1e-5;
+                if (traceStartX > x + traceDirectionTolerance) {
+                    mode = 'no-intersection';
+                    touch = null;
+                }
             } else {
                 mode = 'no-intersection';
             }
@@ -195,10 +284,12 @@ namespace ChartTrace {
         const curveStartY = coord.getPointAtX(curve, 0).y;
         const previousCurveStartY = coord.getPointAtX(previousCurve, 0).y;
         let entryRatio = ratio;
-        if (entry && mode === 'interpolated' && curveStartY != previousCurveStartY) {
-            entryRatio = (entry.y - previousCurveStartY) / (curveStartY - previousCurveStartY);
+        if (entry && mode === 'interpolated' && curveStartY !== previousCurveStartY) {
+            const rawEntryRatio = (entry.y - previousCurveStartY) /
+                (curveStartY - previousCurveStartY);
+            entryRatio = Math.max(0, Math.min(1, rawEntryRatio));
         }
-        const traceCanvasY = mode === 'interpolated' && x == 0 && entry ? entry.y : canvasY;
+        const traceCanvasY = mode === 'interpolated' && x === 0 && entry ? entry.y : canvasY;
         const samples = mode === 'no-intersection'
             ? []
             : sampleRange(traceStartX, x, 48, (sampleX, progress) => {
@@ -208,10 +299,14 @@ namespace ChartTrace {
                 }
                 const upperY = coord.getPointAtX(curve, sampleX).y;
                 const lowerY = coord.getPointAtX(previousCurve, sampleX).y;
-                const sampleRatio = x == 0 ? entryRatio : entryRatio + (ratio - entryRatio) * progress;
+                const sampleRatio = x === 0
+                    ? entryRatio
+                    : entryRatio + (ratio - entryRatio) * progress;
                 return {
                     x: coord.getCanvasX(sampleX),
-                    y: lowerY == upperY ? lowerY : lowerY + (upperY - lowerY) * sampleRatio,
+                    y: lowerY === upperY
+                        ? lowerY
+                        : lowerY + (upperY - lowerY) * sampleRatio,
                 };
             });
 
@@ -223,13 +318,10 @@ namespace ChartTrace {
             touch,
             samples,
         }));
-        elements.inputGuide.setAttribute('d', `M ${selectedX},${coord.getCanvasY(0)} V ${traceCanvasY}`);
-        elements.outputGuide.setAttribute('d', `M ${selectedX},${traceCanvasY} H ${panelRightX}`);
-        const radius = elements.markerRadius;
-        elements.marker.setAttribute(
-            'd',
-            `M ${selectedX - radius},${traceCanvasY} a ${radius},${radius} 0 1,0 ${radius * 2},0 a ${radius},${radius} 0 1,0 ${-radius * 2},0`,
-        );
-        return { x: panelRightX, y: traceCanvasY };
+        if (mode === 'no-intersection') {
+            clearExit(elements);
+            return { x: panelRightX, y: entry?.y ?? traceCanvasY, valid: false };
+        }
+        return renderExit(elements, coord, selectedX, traceCanvasY);
     };
 }

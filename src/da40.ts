@@ -11,6 +11,8 @@ type ChartStep = {
     curves: string[];
     marks?: number[];
     getX: (input: number) => number | null;
+    conservativePassThrough?: (input: number) => boolean;
+    conservativeClampBelow?: (input: number) => boolean;
 };
 
 type ChartDefinition = {
@@ -35,32 +37,84 @@ type ChartCalculator = (
     obst?: number,
 ) => number;
 
+type WindTriangle = {
+    windCorrectionAngle: number;
+    trueHeading: number;
+    groundSpeed: number;
+};
+
+type FuelMixture = 'bestEconomy' | 'bestPower';
+
+type EnginePerformanceColumn = {
+    power: number;
+    rpm: number;
+    fuelFlow: Record<FuelMixture, number | null>;
+    manifoldPressure: (number | null)[];
+    recommendedAltitude: readonly [number, number] | null;
+};
+
+type RecommendationPoint = {
+    x: number;
+    recommended: boolean;
+};
+
+type InterpolationPoint = readonly [number, number];
+
+const interpolateLinear = (start: number, end: number, ratio: number) =>
+    start + (end - start) * ratio;
+
+const selectCurveBracket = (
+    curveMarks: readonly number[],
+    output: number,
+): readonly [number, number] | null => {
+    if (curveMarks.length === 0 || !Number.isFinite(output)) {
+        return null;
+    }
+    let previousIndex = 0;
+    for (let index = 0; index < curveMarks.length; index++) {
+        if (output <= curveMarks[index]) {
+            return [previousIndex, index];
+        }
+        previousIndex = index;
+    }
+    // Values beyond the final left-edge mark can still intersect the final
+    // curve farther right. The renderer validates that intersection and its
+    // left-to-right direction before accepting it.
+    return [curveMarks.length - 1, curveMarks.length - 1];
+};
+
 const getBounds = (path: SVGGeometryElement): Bounds => {
-    let start = path.getPointAtLength(0);
-    let end = path.getPointAtLength(path.getTotalLength());
-    let o = {
+    const start = path.getPointAtLength(0);
+    const end = path.getPointAtLength(path.getTotalLength());
+    const bounds = {
         xmin: start.x,
         xmax: end.x,
         ymin: start.y,
         ymax: end.y
     };
-    if (o.xmin > o.xmax) {
-        [o.xmin, o.xmax] = [o.xmax, o.xmin];
+    if (bounds.xmin > bounds.xmax) {
+        [bounds.xmin, bounds.xmax] = [bounds.xmax, bounds.xmin];
     }
-    if (o.ymin > o.ymax) {
-        [o.ymin, o.ymax] = [o.ymax, o.ymin];
+    if (bounds.ymin > bounds.ymax) {
+        [bounds.ymin, bounds.ymax] = [bounds.ymax, bounds.ymin];
     }
-    return o;
+    return bounds;
 };
+
+const isGeometryPath = (path: Element | null): path is SVGGeometryElement =>
+    path !== null &&
+    typeof (path as SVGGeometryElement).getPointAtLength === 'function' &&
+    typeof (path as SVGGeometryElement).getTotalLength === 'function';
+
 class Coordinate {
-    declare origin: { x: number; y: number };
-    declare xmax: number;
-    declare ymax: number;
-    declare flipY: boolean;
+    readonly origin: { x: number; y: number };
+    readonly xmax: number;
+    readonly ymax: number;
+    readonly flipY: boolean;
 
     constructor(x: SVGGeometryElement, y: SVGGeometryElement, flipY?: boolean) {
-        let ox = getBounds(x);
-        let oy = getBounds(y);
+        const ox = getBounds(x);
+        const oy = getBounds(y);
         this.origin = {
             x: Math.min(oy.xmin, ox.xmin),
             y: Math.min(oy.ymin, ox.ymin),
@@ -72,56 +126,53 @@ class Coordinate {
 
     getCanvasX = (x: number) => (this.xmax - this.origin.x) * x + this.origin.x;
     getCanvasY(y: number) {
-        if (this.flipY) {
-            y = 1 - y;
-        }
-        return (this.ymax - this.origin.y) * y + this.origin.y;
+        const normalizedY = this.flipY ? 1 - y : y;
+        return (this.ymax - this.origin.y) * normalizedY + this.origin.y;
     }
 
-    getPointAtCanvasX(path: SVGGeometryElement, canvasX: number) {
-        let l = 0;
-        let r = path.getTotalLength();
-        if (path.getPointAtLength(l).x > path.getPointAtLength(r).x) {
-            let tmp = l;
-            l = r;
-            r = tmp;
+    private getPointAtCanvasCoordinate(
+        path: SVGGeometryElement,
+        target: number,
+        coordinate: (point: DOMPoint) => number,
+    ) {
+        let left = 0;
+        let right = path.getTotalLength();
+        if (coordinate(path.getPointAtLength(left)) > coordinate(path.getPointAtLength(right))) {
+            [left, right] = [right, left];
         }
-        while (Math.abs(l - r) > 1e-4) {
-            let mid = (l + r) / 2.0;
-            let midPoint = path.getPointAtLength(mid);
-            if (midPoint.x < canvasX) {
-                l = mid
+        while (Math.abs(left - right) > 1e-4) {
+            const middle = (left + right) / 2;
+            if (coordinate(path.getPointAtLength(middle)) < target) {
+                left = middle;
             } else {
-                r = mid
+                right = middle;
             }
         }
-        return path.getPointAtLength(l);
+        return path.getPointAtLength((left + right) / 2);
     }
 
-    getPointAtCanvasY(path: SVGGeometryElement, canvasY: number) {
-        let l = 0;
-        let r = path.getTotalLength();
-        if (path.getPointAtLength(l).y > path.getPointAtLength(r).y) {
-            let tmp = l;
-            l = r;
-            r = tmp;
-        }
-        while (Math.abs(l - r) > 1e-4) {
-            let mid = (l + r) / 2.0;
-            let midPoint = path.getPointAtLength(mid);
-            if (midPoint.y < canvasY) {
-                l = mid
-            } else {
-                r = mid
-            }
-        }
-        return path.getPointAtLength(l);
-    }
+    getPointAtCanvasX = (path: SVGGeometryElement, canvasX: number) =>
+        this.getPointAtCanvasCoordinate(path, canvasX, point => point.x);
+
+    getPointAtCanvasY = (path: SVGGeometryElement, canvasY: number) =>
+        this.getPointAtCanvasCoordinate(path, canvasY, point => point.y);
 
     getX = (canvasX: number) => (canvasX - this.origin.x) / (this.xmax - this.origin.x);
-    getY = (canvasY: number) => (this.flipY ? (this.ymax - canvasY) : (canvasY - this.origin.y)) / (this.ymax - this.origin.y);
-    getPointAtX = (path: SVGGeometryElement, x: number) => this.getPointAtCanvasX(path, this.getCanvasX(x));
-    getPointAtY = (path: SVGGeometryElement, y: number) => this.getPointAtCanvasY(path, this.getCanvasY(y));
+    getY = (canvasY: number) =>
+        (this.flipY ? this.ymax - canvasY : canvasY - this.origin.y) /
+        (this.ymax - this.origin.y);
+    containsX(path: SVGGeometryElement, x: number) {
+        const canvasX = this.getCanvasX(x);
+        const startX = path.getPointAtLength(0).x;
+        const endX = path.getPointAtLength(path.getTotalLength()).x;
+        // Allow small endpoint gaps introduced while tracing the printed SVG,
+        // but do not accept a materially truncated curve.
+        const tolerance = Math.max(1e-4, Math.abs(this.xmax - this.origin.x) * 0.01);
+        return Math.min(startX, endX) - tolerance <= canvasX &&
+            canvasX <= Math.max(startX, endX) + tolerance;
+    }
+    getPointAtX = (path: SVGGeometryElement, x: number) =>
+        this.getPointAtCanvasX(path, this.getCanvasX(x));
 }
 
 const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
@@ -129,7 +180,7 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
     const svgDoc = chartObject && chartObject.contentDocument;
     const svg = svgDoc && svgDoc.getElementById(chart.svg);
     const canvas = svgDoc && svgDoc.getElementById(chart.canvas);
-    let tracePaths: SVGPathElement[] = [];
+    const tracePaths: SVGPathElement[] = [];
     let traceY: number | null = null;
     let traceRightX: number | null = null;
 
@@ -141,30 +192,24 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
     const prepareStep = (step: ChartStep): StepCalculator | null => {
         const xAxis = svgDoc.getElementById(step.x) as SVGGeometryElement | null;
         const yAxis = svgDoc.getElementById(step.y) as SVGGeometryElement | null;
-        let curveIDs: string[] = step.curves;
-        let curveMarks: number[] = [];
-        let curves: (SVGGeometryElement | null)[] = [];
-        let prev = 0;
-        curves = curveIDs.map(id => svgDoc.getElementById(id) as SVGGeometryElement | null);
-        const paths = [xAxis, yAxis, ...curves];
-        if (paths.some(path => !path || typeof (path as SVGGeometryElement).getPointAtLength !== 'function' ||
-            typeof (path as SVGGeometryElement).getTotalLength !== 'function')) {
+        const curves = step.curves.map(id =>
+            svgDoc.getElementById(id) as SVGGeometryElement | null);
+        if (!isGeometryPath(xAxis) || !isGeometryPath(yAxis) ||
+            !curves.every(isGeometryPath)) {
             console.warn(`Chart step unavailable: ${chart.doc}`);
             return null;
         }
-        let coord = new Coordinate(xAxis!, yAxis!, chart.flipY);
-        if (step.marks === undefined) {
-            for (let i = 0; i < curveIDs.length; i++) {
-                curveMarks.push(coord.getY(curves[i]!.getPointAtLength(0).y));
-                if (curveMarks[i] < prev) {
-                    console.log("invalid marks!");
-                }
-                prev = curveMarks[i];
-            }
-        } else {
-            curveMarks = step.marks;
+        const geometryCurves = curves;
+        const coord = new Coordinate(xAxis, yAxis, chart.flipY);
+        const curveMarks = step.marks === undefined
+            ? geometryCurves.map(curve => coord.getY(curve.getPointAtLength(0).y))
+            : [...step.marks];
+        if (curveMarks.length !== curves.length || curveMarks.some((mark, index) =>
+            !Number.isFinite(mark) || (index > 0 && mark <= curveMarks[index - 1]))) {
+            console.warn(`Chart curves out of order: ${chart.doc}`);
+            return null;
         }
-        const strokeWidth = chart.lineWidth ? chart.lineWidth : '1px';
+        const strokeWidth = chart.lineWidth ?? '1px';
         const traceElements = ChartTrace.createElements(svg, canvas, strokeWidth);
         tracePaths.push(
             traceElements.curve,
@@ -173,34 +218,65 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
             traceElements.marker,
         );
 
+        const updateTrace = (exit: ChartTrace.RenderResult) => {
+            traceY = exit.y;
+            traceRightX = exit.x;
+        };
+
         return (output: number | null, input: number) => {
-            if (output == null || isNaN(input)) {
+            if (output === null || !Number.isFinite(output) || !Number.isFinite(input)) {
                 return null;
             }
-            let x = step.getX(input);
-            if (x == null) {
-                return null;
-            }
-            let prevCurveIdx = 0;
-            let curveIdx: number | undefined;
-            for (let i = 0; i < curveMarks.length; i++) {
-                if (output <= curveMarks[i]) {
-                    curveIdx = i;
-                    break;
+            const entry = traceY === null || traceRightX === null
+                ? null
+                : { x: traceRightX, y: traceY };
+            const renderHorizontal = () => {
+                if (!entry) {
+                    return null;
                 }
-                prevCurveIdx = i;
+                const traceExit = ChartTrace.renderPassThrough(
+                    traceElements,
+                    entry,
+                    coord.getCanvasX(1),
+                );
+                updateTrace(traceExit);
+                return output;
+            };
+            const passThrough = () => step.conservativePassThrough?.(input)
+                ? renderHorizontal()
+                : null;
+            const x = step.getX(input);
+            if (x === null) {
+                return passThrough();
             }
-            if (curveIdx === undefined) {
-                return null;
+            // The left edge of every correction panel is its identity
+            // condition. Preserve the incoming value exactly instead of
+            // introducing small SVG digitization offsets.
+            if (entry && ChartTrace.nearlyEqual(x, 0)) {
+                return renderHorizontal();
             }
-            let canvasY1 = coord.getPointAtX(curves[curveIdx]!, x).y;
-            let canvasY0 = coord.getPointAtX(curves[prevCurveIdx]!, x).y;
-            let ratio = (output - curveMarks[prevCurveIdx]) / (curveMarks[curveIdx] - curveMarks[prevCurveIdx]);
-            let canvasY = canvasY0 == canvasY1 ? canvasY0 : ((canvasY1 - canvasY0) * ratio + canvasY0);
+            const bracket = selectCurveBracket(curveMarks, output);
+            if (!bracket) {
+                return passThrough();
+            }
+            const [prevCurveIdx, curveIdx] = bracket;
+            if (!coord.containsX(geometryCurves[prevCurveIdx], x) ||
+                !coord.containsX(geometryCurves[curveIdx], x)) {
+                return passThrough();
+            }
+            const canvasY0 = coord.getPointAtX(geometryCurves[prevCurveIdx], x).y;
+            const canvasY1 = coord.getPointAtX(geometryCurves[curveIdx], x).y;
+            const ratio = prevCurveIdx === curveIdx
+                ? 0
+                : (output - curveMarks[prevCurveIdx]) /
+                    (curveMarks[curveIdx] - curveMarks[prevCurveIdx]);
+            const canvasY = canvasY0 === canvasY1
+                ? canvasY0
+                : interpolateLinear(canvasY0, canvasY1, ratio);
             const traceExit = ChartTrace.render({
                 elements: traceElements,
                 coord,
-                curves: curves as SVGGeometryElement[],
+                curves: geometryCurves,
                 previousCurveIndex: prevCurveIdx,
                 curveIndex: curveIdx,
                 curveMark: curveMarks[curveIdx],
@@ -208,18 +284,33 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
                 ratio,
                 x,
                 canvasY,
-                entry: traceY == null || traceRightX == null ? null : { x: traceRightX, y: traceY },
+                entry,
             });
-            traceY = traceExit.y;
-            traceRightX = traceExit.x;
-            return coord.getY(canvasY);
-        }
+            if (!traceExit.valid) {
+                if (entry && output < curveMarks[0] &&
+                    step.conservativeClampBelow?.(input)) {
+                    const clampExit = ChartTrace.renderClampToCurve({
+                        elements: traceElements,
+                        coord,
+                        curve: geometryCurves[0],
+                        x,
+                        canvasY: coord.getPointAtX(geometryCurves[0], x).y,
+                        entry,
+                    });
+                    updateTrace(clampExit);
+                    return coord.getY(clampExit.y);
+                }
+                return passThrough();
+            }
+            updateTrace(traceExit);
+            return coord.getY(traceExit.y);
+        };
     }
 
-    let inputPress = prepareStep(chart.press);
-    let inputMass = chart.mass ? prepareStep(chart.mass) : null;
-    let inputWind = chart.wind ? prepareStep(chart.wind) : null;
-    let inputObst = chart.obst ? prepareStep(chart.obst) : null;
+    const inputPress = prepareStep(chart.press);
+    const inputMass = chart.mass ? prepareStep(chart.mass) : null;
+    const inputWind = chart.wind ? prepareStep(chart.wind) : null;
+    const inputObst = chart.obst ? prepareStep(chart.obst) : null;
 
     if (!inputPress || (chart.mass && !inputMass) || (chart.wind && !inputWind) ||
         (chart.obst && !inputObst)) {
@@ -227,11 +318,14 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
     }
 
     return (alt: number, oat: number, mass?: number, wind?: number, obst?: number) => {
-        for (let i = 0; i < tracePaths.length; i++) {
-            tracePaths[i].setAttribute('d', '');
+        for (const tracePath of tracePaths) {
+            tracePath.setAttribute('d', '');
         }
         traceY = null;
         traceRightX = null;
+        if (!Number.isFinite(alt) || !Number.isFinite(oat)) {
+            return NaN;
+        }
         if (alt < 0) {
             alt = 0;
         }
@@ -240,15 +334,15 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
         }
         let out = inputPress(alt, oat);
         if (inputMass) {
-            out = inputMass(out, mass as number);
+            out = inputMass(out, mass ?? NaN);
         }
         if (inputWind) {
-            out = inputWind(out, wind as number);
+            out = inputWind(out, wind ?? NaN);
         }
         if (inputObst) {
-            out = inputObst(out, obst as number);
+            out = inputObst(out, obst ?? NaN);
         }
-        if (out == null) {
+        if (out === null) {
             return NaN;
         }
         return chart.output(out);
@@ -256,11 +350,15 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
 };
 
 const setValue = (dom: Element | null, v: unknown) => {
-    (dom as HTMLElement).innerText = v as string;
-}
+    if (dom) {
+        (dom as HTMLElement).innerText = String(v);
+    }
+};
 
 const clearValue = (dom: Element | null) => {
-    (dom as HTMLElement).innerText = "";
+    if (dom) {
+        (dom as HTMLElement).innerText = '';
+    }
 }
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -269,7 +367,13 @@ const formatInt = (v: unknown) => isFiniteNumber(v) ? v.toFixed(0) : "";
 const formatInts = (...values: unknown[]) =>
     values.every(isFiniteNumber) ? values.map(formatInt).join(',') : '';
 const rectifyDir = (v: number) => (v % 360 + 360) % 360;
-const formatDir = (v: unknown) => isFiniteNumber(v) ? padZero(rectifyDir(v) || 360, 3) : "";
+const formatDir = (v: unknown) => {
+    if (!isFiniteNumber(v)) {
+        return "";
+    }
+    const rounded = Math.round(rectifyDir(v)) % 360;
+    return padZero(rounded || 360, 3);
+};
 const feetPerNauticalMile = (fpm: number, knots: number) =>
     Number.isFinite(fpm) && Number.isFinite(knots) && knots > 0 ? fpm * 60 / knots : NaN;
 
@@ -293,7 +397,7 @@ const parseQNH = (e: Element | null) => {
 
 const parseValue = (e: Element | null, d = NaN): number => {
     const text = (e as HTMLElement).innerText.trim();
-    if (text == "") {
+    if (text === '') {
         return d;
     }
     const x = Number(text);
@@ -317,9 +421,43 @@ const parseRunway = (e: Element | null, d?: number): number => {
 
 const rad2deg = (r: number) => r / Math.PI * 180;
 const deg2rad = (d: number) => d / 180 * Math.PI;
+
+const calculateWindTriangle = (
+    trueCourse: number,
+    trueAirspeed: number,
+    windDirection: number,
+    windSpeed: number,
+): WindTriangle | null => {
+    if (![trueCourse, trueAirspeed, windDirection, windSpeed].every(Number.isFinite) ||
+        trueAirspeed <= 0 || windSpeed < 0) {
+        return null;
+    }
+    const windAngle = deg2rad(windDirection - trueCourse);
+    const crosswind = Math.sin(windAngle) * windSpeed;
+    const correctionRatio = crosswind / trueAirspeed;
+    if (Math.abs(correctionRatio) > 1) {
+        return null;
+    }
+    const correctionRadians = Math.asin(correctionRatio);
+    const groundSpeed = trueAirspeed * Math.cos(correctionRadians) -
+        Math.cos(windAngle) * windSpeed;
+    if (!(groundSpeed > 0)) {
+        return null;
+    }
+    const windCorrectionAngle = rad2deg(correctionRadians);
+    return {
+        windCorrectionAngle,
+        trueHeading: trueCourse + windCorrectionAngle,
+        groundSpeed,
+    };
+};
+
+// True to magnetic: east is least (negative), west is best (positive).
+const magneticHeadingFromTrue = (trueHeading: number, variationCorrection: number) =>
+    trueHeading + variationCorrection;
+
 const padZero = (num: number, size: number) => {
-    const s = "000000000" + num;
-    return s.substr(s.length - size);
+    return String(num).padStart(size, '0');
 }
 
 const arms = [
@@ -334,6 +472,8 @@ const arms = [
 ];
 
 const nauticalInFeet = 6076.12;
+const descentDistance = (altitudeFeet: number, slopeDegrees: number) =>
+    altitudeFeet / (nauticalInFeet * Math.tan(deg2rad(slopeDegrees)));
 const fuelDensity = 6.01; // lb/gal
 const fuelArm = 103.5;
 const maxFuelVolumeStd = 40;
@@ -342,16 +482,141 @@ const maxRearwardCGStd = 102;
 const maxRearwardCGLong = 100.4;
 const maxGrossWeight = 2535;
 const maxGrossWeightAlt = 2646;
+const maxZeroFuelWeight = 2535;
+const maxStandardBaggageWeight = 66;
+const maxBaggageTubeWeight = 11;
+const maxExtendedForwardBaggageWeight = 100;
+const maxExtendedAftBaggageWeight = 40;
+const maxCombinedExtendedBaggageWeight = 100;
+
+const seaLevelStandardTemperatureK = 288.15;
+const seaLevelStandardPressurePa = 101325;
+const standardTemperatureLapseRate = 0.0065;
+const feetToMeters = 0.3048;
+const knotsToMetersPerSecond = 0.5144444444444445;
+const standardPressureExponent = 5.2558797;
+const ratioOfSpecificHeats = 1.4;
+const specificGasConstantAir = 287.05287;
+
+// DA 40 AFM Rev. 10, section 5.3.2, pages 5-6 and 5-7. Each manifold-
+// pressure array is indexed by pressure altitude from MSL through 17,000 ft.
+const enginePerformancePressureAltitudes = [
+    0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000,
+    9000, 10000, 11000, 12000, 13000, 14000, 15000, 16000, 17000,
+];
+
+const enginePerformanceTable: EnginePerformanceColumn[] = [
+    {
+        power: 45, rpm: 1800, fuelFlow: { bestEconomy: 5.8, bestPower: null },
+        recommendedAltitude: [0, 11000],
+        manifoldPressure: [
+            22.7, 22.4, 22.1, 21.8, 21.5, 21.2, 20.9, 20.5, 20.2,
+            19.9, 19.6, 19.3, null, null, null, null, null, null,
+        ],
+    },
+    {
+        power: 45, rpm: 2000, fuelFlow: { bestEconomy: 6.0, bestPower: null },
+        recommendedAltitude: [10000, 13000],
+        manifoldPressure: [
+            21.3, 21.0, 20.7, 20.4, 20.2, 19.9, 19.6, 19.3, 19.0,
+            18.7, 18.4, 18.2, 17.9, 17.6, null, null, null, null,
+        ],
+    },
+    {
+        power: 45, rpm: 2200, fuelFlow: { bestEconomy: 6.3, bestPower: 7.3 },
+        recommendedAltitude: [12000, 16000],
+        manifoldPressure: [
+            20.2, 19.9, 19.6, 19.3, 19.0, 18.7, 18.4, 18.2, 17.9,
+            17.6, 17.3, 17.0, 16.7, 16.4, 16.1, 15.8, 15.5, null,
+        ],
+    },
+    {
+        power: 45, rpm: 2400, fuelFlow: { bestEconomy: 6.6, bestPower: 7.7 },
+        recommendedAltitude: [14000, 17000],
+        manifoldPressure: [
+            19.0, 18.7, 18.4, 18.2, 17.9, 17.6, 17.4, 17.1, 16.9,
+            16.6, 16.3, 16.1, 15.8, 15.5, 15.3, 15.0, 14.7, 14.5,
+        ],
+    },
+    {
+        power: 55, rpm: 2000, fuelFlow: { bestEconomy: 7.0, bestPower: null },
+        recommendedAltitude: [0, 9000],
+        manifoldPressure: [
+            23.9, 23.6, 23.3, 23.0, 22.7, 22.3, 22.0, 21.7, 21.3,
+            21.1, null, null, null, null, null, null, null, null,
+        ],
+    },
+    {
+        power: 55, rpm: 2200, fuelFlow: { bestEconomy: 7.2, bestPower: 8.5 },
+        recommendedAltitude: [8000, 11000],
+        manifoldPressure: [
+            22.4, 22.2, 21.9, 21.6, 21.2, 20.9, 20.6, 20.3, 20.0,
+            19.7, 19.4, 19.1, null, null, null, null, null, null,
+        ],
+    },
+    {
+        power: 55, rpm: 2400, fuelFlow: { bestEconomy: 7.5, bestPower: 8.7 },
+        recommendedAltitude: [10000, 13000],
+        manifoldPressure: [
+            21.2, 21.0, 20.7, 20.4, 20.1, 19.8, 19.5, 19.3, 19.0,
+            18.7, 18.4, 18.1, 17.8, 17.6, null, null, null, null,
+        ],
+    },
+    {
+        power: 65, rpm: 2000, fuelFlow: { bestEconomy: 7.9, bestPower: null },
+        recommendedAltitude: null,
+        manifoldPressure: [
+            26.8, 26.4, 26.0, 25.7, 25.4, null, null, null, null,
+            null, null, null, null, null, null, null, null, null,
+        ],
+    },
+    {
+        power: 65, rpm: 2200, fuelFlow: { bestEconomy: 8.2, bestPower: 9.5 },
+        recommendedAltitude: [0, 7000],
+        manifoldPressure: [
+            24.9, 24.5, 24.2, 23.8, 23.5, 23.1, 22.8, 22.4, null,
+            null, null, null, null, null, null, null, null, null,
+        ],
+    },
+    {
+        power: 65, rpm: 2400, fuelFlow: { bestEconomy: 8.5, bestPower: 9.8 },
+        recommendedAltitude: [6000, 9000],
+        manifoldPressure: [
+            23.4, 23.2, 22.9, 22.6, 22.3, 22.0, 21.7, 21.4, 21.0,
+            20.7, null, null, null, null, null, null, null, null,
+        ],
+    },
+    {
+        power: 75, rpm: 2200, fuelFlow: { bestEconomy: 9.2, bestPower: 10.7 },
+        recommendedAltitude: [0, 3000],
+        manifoldPressure: [
+            27.3, 26.8, 26.5, 26.1, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null,
+        ],
+    },
+    {
+        power: 75, rpm: 2400, fuelFlow: { bestEconomy: 9.5, bestPower: 11.0 },
+        recommendedAltitude: [2000, 5000],
+        manifoldPressure: [
+            25.8, 25.5, 25.2, 24.8, 24.5, 24.1, null, null, null,
+            null, null, null, null, null, null, null, null, null,
+        ],
+    },
+];
+
+const enginePerformancePowers = [45, 55, 65, 75];
 
 const weightSteps = [1874, 2205, 2535, 2646];
 const vys = [54, 60, 66, 67];
 const vclimbs = [60, 68, 73, 76];
+// KCAS read conservatively to the next whole knot from AFM 5.3.1 at the
+// climb KIAS published in AFM 4A.2.
+const vyCalibrated = [58, 64, 69, 70];
+const vclimbCalibrated = [66, 73, 78, 81];
 const vgs = [60, 68, 73, 76];
 const vappLdgs = [58, 63, 71, 73];
 const vappTos = [59, 66, 72, 74];
 const vappUp = [60, 68, 73, 76];
-const vyGradientSpeed = 67;
-const climbGradientSpeed = 76;
 
 const massClasses = [
     '.front-left-mass',
@@ -403,7 +668,10 @@ const takeoffChart: ChartDefinition = {
                 return null; // mass out of range
             }
             return (maxMass - mass) / (maxMass - minMass);
-        }
+        },
+        // Ignoring a favorable reduction from the 2646 lb reference mass
+        // leaves a conservative (longer) take-off distance.
+        conservativePassThrough: (mass) => mass > 0 && mass <= 2646,
     },
     wind: {
         x: 'path1816',
@@ -416,7 +684,10 @@ const takeoffChart: ChartDefinition = {
                 return null; // wind out of range
             }
             return (wind - minWind) / (maxWind - minWind);
-        }
+        },
+        // The input is headwind only. Omitting its credit leaves the zero-wind
+        // distance, which is conservative.
+        conservativePassThrough: (wind) => wind >= 0,
     },
     obst: {
         x: 'path1962',
@@ -429,7 +700,14 @@ const takeoffChart: ChartDefinition = {
                 return null;
             }
             return (obst - minObst) / (maxObst - minObst);
-        }
+        },
+        // Zero obstacle is the identity point. A positive obstacle must never
+        // be ignored because doing so would understate the required distance.
+        conservativePassThrough: (obst) => obst === 0,
+        // When favorable upstream corrections put the entry below this
+        // non-intersecting family, use its lowest curve. This assumes a longer
+        // ground roll than calculated and is therefore conservative.
+        conservativeClampBelow: (obst) => 0 < obst && obst <= 50,
     },
     output: (y) => Math.ceil((y * (1400 - 100) + 100) * 3.28084),
 };
@@ -465,7 +743,10 @@ const landingChart: ChartDefinition = {
                 return null; // mass out of range
             }
             return (maxMass - mass) / (maxMass - minMass);
-        }
+        },
+        // Ignoring a favorable reduction from the 2646 lb reference mass
+        // leaves a conservative (longer) landing distance.
+        conservativePassThrough: (mass) => mass > 0 && mass <= 2646,
     },
     wind: {
         x: 'path1381',
@@ -478,7 +759,8 @@ const landingChart: ChartDefinition = {
                 return null; // wind out of range
             }
             return (wind - minWind) / (maxWind - minWind);
-        }
+        },
+        conservativePassThrough: (wind) => wind >= 0,
     },
     obst: {
         x: 'path1433',
@@ -491,7 +773,12 @@ const landingChart: ChartDefinition = {
                 return null;
             }
             return (maxObst - obst) / (maxObst - minObst);
-        }
+        },
+        // Unlike the take-off chart, this panel starts at the 50 ft landing
+        // distance and moves right toward the shorter ground roll. Ignoring
+        // any reduction within that published range therefore remains
+        // conservative.
+        conservativePassThrough: (obst) => obst >= 0 && obst <= 50,
     },
     output: (y) => Math.ceil((y * (1400 - 100) + 100) * 3.28084),
 };
@@ -527,7 +814,11 @@ const takeoffClimbChart: ChartDefinition = {
                 return null; // mass out of range
             }
             return (maxMass - mass) / (maxMass - minMass);
-        }
+        },
+        // The chart's mass scale stops at 2094 lb. For a lighter airplane,
+        // carrying the 2646 lb base rate straight through is a conservative
+        // lower bound rather than extrapolating the mass correction.
+        conservativePassThrough: (mass) => mass > 0 && mass <= 2646,
     },
     output: (y) => Math.ceil((1 - y) * (1600 - 0) + 0),
 };
@@ -563,7 +854,8 @@ const cruiseClimbChart: ChartDefinition = {
                 return null; // mass out of range
             }
             return (maxMass - mass) / (maxMass - minMass);
-        }
+        },
+        conservativePassThrough: (mass) => mass > 0 && mass <= 2646,
     },
     output: (y) => Math.ceil((1 - y) * (1600 - 0) + 0),
 };
@@ -572,26 +864,222 @@ let takeoffCalc: ChartCalculator | undefined;
 let landingCalc: ChartCalculator | undefined;
 let takeoffClimbCalc: ChartCalculator | undefined;
 let cruiseClimbCalc: ChartCalculator | undefined;
-let fpmSource: string | undefined;
+let fpmSource: 'rate' | 'gradient' | undefined;
 
-const interpolateAirspeed = (speeds: number[], mass: number): number => {
-    let start = 0;
-    let speed0 = 0;
-    let speedMin = speeds[0];
-    for (let i = 0; i < weightSteps.length; i++) {
-        let end = weightSteps[i];
-        if (mass <= end) {
-            let ratio = (mass - start) / (end - start);
-            return Math.ceil(Math.max((speeds[i] - speed0) * ratio + speed0, speedMin));
+const interpolateAirspeed = (speeds: readonly number[], mass: number): number => {
+    if (!Number.isFinite(mass) || mass <= 0 || speeds.length !== weightSteps.length ||
+        speeds.some(speed => !Number.isFinite(speed))) {
+        return NaN;
+    }
+    if (mass <= weightSteps[0]) {
+        return Math.ceil(speeds[0]);
+    }
+    for (let i = 1; i < weightSteps.length; i++) {
+        const startMass = weightSteps[i - 1];
+        const endMass = weightSteps[i];
+        if (mass <= endMass) {
+            const ratio = (mass - startMass) / (endMass - startMass);
+            const speed = interpolateLinear(speeds[i - 1], speeds[i], ratio);
+            return Math.ceil(Math.max(speed, speeds[0]));
         }
-        speed0 = speeds[i];
-        start = end;
     }
     return NaN;
-}
+};
 
-const checkCG = (mass: number, cg: number, isLongRange: boolean) => {
-    const minForwardCG = mass > 2161 ? ((97.6 - 94.5) / (2646 - 2161) * (mass - 2161) + 94.5) : 94.5;
+const interpolatePoints = (
+    points: readonly InterpolationPoint[],
+    input: number,
+): number => {
+    if (!Number.isFinite(input) ||
+        points.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
+        return NaN;
+    }
+    const sorted = [...points].sort(([x0], [x1]) => x0 - x1);
+    if (sorted.some(([x], index) => index > 0 && x === sorted[index - 1][0])) {
+        return NaN;
+    }
+    for (const [x, y] of sorted) {
+        if (Math.abs(input - x) < 1e-9) {
+            return y;
+        }
+    }
+    for (let i = 1; i < sorted.length; i++) {
+        const [x0, y0] = sorted[i - 1];
+        const [x1, y1] = sorted[i];
+        if (x0 < input && input < x1) {
+            return interpolateLinear(y0, y1, (input - x0) / (x1 - x0));
+        }
+    }
+    return NaN;
+};
+
+const fuelFlowAtPower = (power: number, rpm: number, mixture: FuelMixture): number => {
+    const powerPoints: InterpolationPoint[] = [];
+    for (const tablePower of enginePerformancePowers) {
+        const rpmPoints: InterpolationPoint[] = [];
+        for (const column of enginePerformanceTable) {
+            const fuelFlow = column.fuelFlow[mixture];
+            if (column.power === tablePower && fuelFlow !== null) {
+                rpmPoints.push([column.rpm, fuelFlow]);
+            }
+        }
+        const fuelFlow = interpolatePoints(rpmPoints, rpm);
+        if (Number.isFinite(fuelFlow)) {
+            powerPoints.push([tablePower, fuelFlow]);
+        }
+    }
+    return interpolatePoints(powerPoints, power);
+};
+
+const manifoldPressureForColumn = (
+    column: EnginePerformanceColumn,
+    pressureAltitude: number,
+): number => {
+    const altitudePoints: InterpolationPoint[] = [];
+    for (let i = 0; i < enginePerformancePressureAltitudes.length; i++) {
+        const manifoldPressure = column.manifoldPressure[i];
+        if (manifoldPressure !== null && manifoldPressure !== undefined) {
+            altitudePoints.push([enginePerformancePressureAltitudes[i], manifoldPressure]);
+        }
+    }
+    return interpolatePoints(altitudePoints, pressureAltitude);
+};
+
+const manifoldPressureAtPower = (
+    pressureAltitude: number,
+    rpm: number,
+    power: number,
+): number => {
+    const powerPoints: InterpolationPoint[] = [];
+    for (const tablePower of enginePerformancePowers) {
+        const rpmPoints: InterpolationPoint[] = [];
+        for (const column of enginePerformanceTable) {
+            if (column.power !== tablePower) {
+                continue;
+            }
+            const manifoldPressure = manifoldPressureForColumn(column, pressureAltitude);
+            if (Number.isFinite(manifoldPressure)) {
+                rpmPoints.push([column.rpm, manifoldPressure]);
+            }
+        }
+        const manifoldPressure = interpolatePoints(rpmPoints, rpm);
+        if (Number.isFinite(manifoldPressure)) {
+            powerPoints.push([tablePower, manifoldPressure]);
+        }
+    }
+    return interpolatePoints(powerPoints, power);
+};
+
+const powerFromManifoldPressure = (
+    pressureAltitude: number,
+    rpm: number,
+    manifoldPressure: number,
+): number => {
+    const inversePoints: InterpolationPoint[] = [];
+    for (const power of enginePerformancePowers) {
+        const tableManifoldPressure = manifoldPressureAtPower(pressureAltitude, rpm, power);
+        if (Number.isFinite(tableManifoldPressure)) {
+            inversePoints.push([tableManifoldPressure, power]);
+        }
+    }
+    return interpolatePoints(inversePoints, manifoldPressure);
+};
+
+const calculateEnginePerformance = (
+    pressureAltitude: number,
+    rpm: number,
+    manifoldPressure: number,
+    mixture: FuelMixture,
+): { power: number; fuelFlow: number } => {
+    const power = powerFromManifoldPressure(pressureAltitude, rpm, manifoldPressure);
+    return {
+        power,
+        fuelFlow: fuelFlowAtPower(power, rpm, mixture),
+    };
+};
+
+// For an interpolated setting, require every table point that brackets it to
+// be shaded. This avoids presenting an unmarked in-between setting as an AFM-
+// recommended operating point.
+const isRecommendedBetween = (
+    points: readonly RecommendationPoint[],
+    input: number,
+): boolean => {
+    if (!Number.isFinite(input) || points.some(point => !Number.isFinite(point.x))) {
+        return false;
+    }
+    const sorted = [...points].sort((point0, point1) => point0.x - point1.x);
+    if (sorted.some((point, index) => index > 0 && point.x === sorted[index - 1].x)) {
+        return false;
+    }
+    for (const point of sorted) {
+        if (Math.abs(input - point.x) < 1e-9) {
+            return point.recommended;
+        }
+    }
+    for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i - 1].x < input && input < sorted[i].x) {
+            return sorted[i - 1].recommended && sorted[i].recommended;
+        }
+    }
+    return false;
+};
+
+const isColumnRecommended = (
+    column: EnginePerformanceColumn,
+    pressureAltitude: number,
+) => column.recommendedAltitude !== null &&
+    column.recommendedAltitude[0] <= pressureAltitude &&
+    pressureAltitude <= column.recommendedAltitude[1];
+
+const isRecommendedAtPower = (
+    pressureAltitude: number,
+    rpm: number,
+    power: number,
+): boolean => {
+    const rpmPoints: RecommendationPoint[] = [];
+    for (const column of enginePerformanceTable) {
+        if (column.power === power &&
+            Number.isFinite(manifoldPressureForColumn(column, pressureAltitude))) {
+            rpmPoints.push({
+                x: column.rpm,
+                recommended: isColumnRecommended(column, pressureAltitude),
+            });
+        }
+    }
+    return isRecommendedBetween(rpmPoints, rpm);
+};
+
+const isRecommendedEngineSetting = (
+    pressureAltitude: number,
+    rpm: number,
+    manifoldPressure: number,
+): boolean => {
+    const power = powerFromManifoldPressure(pressureAltitude, rpm, manifoldPressure);
+    if (!Number.isFinite(power)) {
+        return false;
+    }
+    const powerPoints: RecommendationPoint[] = [];
+    for (const tablePower of enginePerformancePowers) {
+        if (Number.isFinite(manifoldPressureAtPower(pressureAltitude, rpm, tablePower))) {
+            powerPoints.push({
+                x: tablePower,
+                recommended: isRecommendedAtPower(pressureAltitude, rpm, tablePower),
+            });
+        }
+    }
+    return isRecommendedBetween(powerPoints, power);
+};
+
+const checkCG = (mass: number, cg: number, isLongRange: boolean, isMAM: boolean) => {
+    if (![mass, cg].every(Number.isFinite)) {
+        return NaN;
+    }
+    const maxForwardCGMass = isMAM ? maxGrossWeightAlt : maxGrossWeight;
+    const maxForwardCG = isMAM ? 97.6 : 96.9;
+    const minForwardCG = mass > 2161
+        ? (maxForwardCG - 94.5) / (maxForwardCGMass - 2161) * (mass - 2161) + 94.5
+        : 94.5;
     const maxRearwardCG = isLongRange ? maxRearwardCGLong : maxRearwardCGStd;
     if (cg > maxRearwardCG) {
         return 1;
@@ -602,8 +1090,80 @@ const checkCG = (mass: number, cg: number, isLongRange: boolean) => {
     return 0;
 }
 
+// AFM 6.4.10 requires the CG to be inside the envelope both with empty fuel
+// tanks (row 7) and with usable fuel included (row 9).
+const areLoadingCGsWithinLimits = (
+    zeroFuelMass: number,
+    zeroFuelMoment: number,
+    totalMass: number,
+    totalMoment: number,
+    isLongRange: boolean,
+    isMAM: boolean,
+) => {
+    if (![zeroFuelMass, zeroFuelMoment, totalMass, totalMoment].every(Number.isFinite) ||
+        zeroFuelMass <= 0 || totalMass <= 0) {
+        return false;
+    }
+    return checkCG(zeroFuelMass, zeroFuelMoment / zeroFuelMass, isLongRange, isMAM) === 0 &&
+        checkCG(totalMass, totalMoment / totalMass, isLongRange, isMAM) === 0;
+};
+
 const checkMass = (mass: number, mam: boolean) =>
     Number.isFinite(mass) && mass <= (mam ? maxGrossWeightAlt : maxGrossWeight);
+
+const checkLoadingLimits = (stationMasses: number[], zeroFuelMass: number) =>
+    stationMasses.length >= arms.length &&
+    stationMasses.every(mass => Number.isFinite(mass) && mass >= 0) &&
+    Number.isFinite(zeroFuelMass) && zeroFuelMass <= maxZeroFuelWeight &&
+    stationMasses[4] <= maxStandardBaggageWeight &&
+    stationMasses[5] <= maxBaggageTubeWeight &&
+    stationMasses[6] <= maxExtendedForwardBaggageWeight &&
+    stationMasses[7] <= maxExtendedAftBaggageWeight &&
+    stationMasses[6] + stationMasses[7] <= maxCombinedExtendedBaggageWeight;
+
+// AFM 1.5 defines TAS as CAS corrected for altitude and temperature. This uses
+// the subsonic compressible-flow relation rather than treating KIAS as KCAS.
+const calibratedToTrueAirspeed = (kcas: number, pressureAltitudeFeet: number, oatCelsius: number) => {
+    if (![kcas, pressureAltitudeFeet, oatCelsius].every(Number.isFinite) ||
+        kcas < 0 || oatCelsius <= -273.15) {
+        return NaN;
+    }
+    const standardTemperatureK = seaLevelStandardTemperatureK -
+        standardTemperatureLapseRate * pressureAltitudeFeet * feetToMeters;
+    const actualTemperatureK = oatCelsius + 273.15;
+    if (standardTemperatureK <= 0) {
+        return NaN;
+    }
+    const pressureRatio = Math.pow(
+        standardTemperatureK / seaLevelStandardTemperatureK,
+        standardPressureExponent,
+    );
+    const seaLevelSpeedOfSound = Math.sqrt(
+        ratioOfSpecificHeats * specificGasConstantAir * seaLevelStandardTemperatureK,
+    );
+    const calibratedMetersPerSecond = kcas * knotsToMetersPerSecond;
+    const seaLevelMachSquared = Math.pow(calibratedMetersPerSecond / seaLevelSpeedOfSound, 2);
+    const impactPressure = seaLevelStandardPressurePa * (
+        Math.pow(
+            1 + (ratioOfSpecificHeats - 1) / 2 * seaLevelMachSquared,
+            ratioOfSpecificHeats / (ratioOfSpecificHeats - 1),
+        ) - 1
+    );
+    const staticPressure = seaLevelStandardPressurePa * pressureRatio;
+    const localMachSquared = 2 / (ratioOfSpecificHeats - 1) * (
+        Math.pow(
+            impactPressure / staticPressure + 1,
+            (ratioOfSpecificHeats - 1) / ratioOfSpecificHeats,
+        ) - 1
+    );
+    if (localMachSquared < 0) {
+        return NaN;
+    }
+    const localSpeedOfSound = Math.sqrt(
+        ratioOfSpecificHeats * specificGasConstantAir * actualTemperatureK,
+    );
+    return Math.sqrt(localMachSquared) * localSpeedOfSound / knotsToMetersPerSecond;
+};
 
 const refresh = () => {
     const weights = document.getElementById('weights')!;
@@ -612,7 +1172,7 @@ const refresh = () => {
 
     const qnh = env.querySelector('.qnh')!;
     const press = env.querySelector('.press-alt')!;
-    const elev = parsePositiveValue(env.querySelector('.field-alt'));
+    const elev = parseValue(env.querySelector('.field-alt'));
 
     if (qnh.classList.contains('active')) {
         press.textContent = formatInt((29.92 - parseQNH(qnh)) * 1000 + elev);
@@ -624,13 +1184,17 @@ const refresh = () => {
 
     let totalMass = parsePositiveValue(weights.querySelector('.empty-mass'));
     let totalMoment = parsePositiveValue(weights.querySelector('.empty-moment'));
+    const stationMasses: number[] = [];
     for (let i = 0; i < massClasses.length; i++) {
         const mass = parsePositiveValue(weights.querySelector(massClasses[i]), 0);
+        stationMasses.push(mass);
         const moment = mass * arms[i];
         setValue(weights.querySelector(momentClasses[i]), formatFloat(moment, 2));
         totalMass += mass;
         totalMoment += moment;
     }
+    const zeroFuelMass = totalMass;
+    const zeroFuelMoment = totalMoment;
 
     const isMAM = (weights.querySelector('input[name="mam-40-227"]') as HTMLInputElement).checked;
     const isLongRange = (weights.querySelector('input[name="longrange-tank"]') as HTMLInputElement).checked;
@@ -646,18 +1210,27 @@ const refresh = () => {
     setValue(weights.querySelector('.total-moment'), formatFloat(totalMoment));
 
     const cg = totalMoment / totalMass;
-    const cgOut = checkCG(totalMass, cg, isLongRange);
+    const cgOut = checkCG(totalMass, cg, isLongRange, isMAM);
+    const cgOk = areLoadingCGsWithinLimits(
+        zeroFuelMass,
+        zeroFuelMoment,
+        totalMass,
+        totalMoment,
+        isLongRange,
+        isMAM,
+    );
     const massOk = checkMass(totalMass, isMAM);
-    const wbOk = massOk && (cgOut == 0);
+    const loadingOk = massOk && checkLoadingLimits(stationMasses, zeroFuelMass);
+    const wbOk = loadingOk && cgOk;
 
     const massOutput = outputs.querySelector('.total-mass')!;
     const cgOutput = outputs.querySelector('.cg')!;
     setValue(massOutput, formatFloat(totalMass));
-    if (isNaN(totalMass)) {
+    if (Number.isNaN(totalMass)) {
         (massOutput.parentNode as Element).classList.remove('ok');
     } else {
         const classes = (massOutput.parentNode as Element).classList;
-        if (massOk) {
+        if (loadingOk) {
             classes.add('ok');
         } else {
             classes.remove('ok');
@@ -670,11 +1243,11 @@ const refresh = () => {
         cgMark = "<<" + cgMark;
     }
     setValue(cgOutput, cgMark);
-    if (isNaN(cg)) {
+    if (Number.isNaN(cg)) {
         (cgOutput.parentNode as Element).classList.remove('ok');
     } else {
         const classes = (cgOutput.parentNode as Element).classList;
-        if (cgOut == 0) {
+        if (cgOk) {
             classes.add('ok');
         } else {
             classes.remove('ok');
@@ -685,10 +1258,12 @@ const refresh = () => {
     const pressAlt = parseValue(env.querySelector('.press-alt'));
 
     if (wbOk) {
+        const takeoffClimbKias = interpolateAirspeed(vys, totalMass);
+        const cruiseClimbKias = interpolateAirspeed(vclimbs, totalMass);
         setValue(outputs.querySelector('.vy'),
             formatInts(
-                interpolateAirspeed(vys, totalMass),
-                interpolateAirspeed(vclimbs, totalMass),
+                takeoffClimbKias,
+                cruiseClimbKias,
             ));
         setValue(outputs.querySelector('.vg'), formatInt(interpolateAirspeed(vgs, totalMass)));
         setValue(outputs.querySelector('.vapp'),
@@ -711,8 +1286,10 @@ const refresh = () => {
         setValue(outputs.querySelector('.va'), formatInt(va));
 
         const wind = parseValue(env.querySelector('.headwind'));
-        const vyGroundSpeed = vyGradientSpeed - wind;
-        const climbGroundSpeed = climbGradientSpeed - wind;
+        const takeoffClimbKcas = interpolateAirspeed(vyCalibrated, totalMass);
+        const cruiseClimbKcas = interpolateAirspeed(vclimbCalibrated, totalMass);
+        const takeoffClimbGroundSpeed = calibratedToTrueAirspeed(takeoffClimbKcas, pressAlt, oat) - wind;
+        const cruiseClimbGroundSpeed = calibratedToTrueAirspeed(cruiseClimbKcas, pressAlt, oat) - wind;
         const obst = parsePositiveValue(env.querySelector('.obst'));
         if (takeoffCalc !== undefined) {
             setValue(outputs.querySelector('.takeoff'), formatInt(takeoffCalc(pressAlt, oat, totalMass, wind, obst)));
@@ -723,8 +1300,8 @@ const refresh = () => {
                 formatInts(takeoffClimb, cruiseClimb));
             setValue(outputs.querySelector('.takeoff-climb-gradient'),
                 formatInts(
-                    feetPerNauticalMile(takeoffClimb, vyGroundSpeed),
-                    feetPerNauticalMile(cruiseClimb, climbGroundSpeed),
+                    feetPerNauticalMile(takeoffClimb, takeoffClimbGroundSpeed),
+                    feetPerNauticalMile(cruiseClimb, cruiseClimbGroundSpeed),
                 ));
         }
     } else {
@@ -743,8 +1320,36 @@ const refresh = () => {
     setValue(env.querySelector('.density-alt'), formatInt(densityAlt));
 }
 
+const refreshEnginePerformance = (tools: HTMLElement) => {
+    const mixture: FuelMixture =
+        tools.querySelector<HTMLInputElement>('.ep-best-power')!.checked
+            ? 'bestPower'
+            : 'bestEconomy';
+    const pressureAltitude = parseValue(tools.querySelector('.ep-alt'));
+    const rpm = parseValue(tools.querySelector('.ep-rpm'));
+    const manifoldPressure = parseValue(tools.querySelector('.ep-mp'));
+    const { power, fuelFlow } = calculateEnginePerformance(
+        pressureAltitude,
+        rpm,
+        manifoldPressure,
+        mixture,
+    );
+    const performanceOutput = tools.querySelector('.ep-output')!;
+    const performance = [fuelFlow, power].every(Number.isFinite)
+        ? `${formatFloat(fuelFlow, 2)} gal/h, ${formatInt(power)} % Power`
+        : '';
+    setValue(performanceOutput, performance);
+    (performanceOutput.parentNode as Element).classList.toggle(
+        'gray',
+        Number.isFinite(fuelFlow) &&
+            isRecommendedEngineSetting(pressureAltitude, rpm, manifoldPressure),
+    );
+};
+
 const refreshTools = () => {
     const tools = document.getElementById('tools')!;
+
+    refreshEnginePerformance(tools);
 
     const wcdir = parseDirection(tools.querySelector('.wc-dir'));
     const wcvel = parsePositiveValue(tools.querySelector('.wc-vel'));
@@ -752,8 +1357,8 @@ const refreshTools = () => {
     const wcd = deg2rad(wcrwy - wcdir);
     const xwind = Math.round(Math.sin(wcd) * wcvel);
     setValue(tools.querySelector('.wc-cross'),
-        isNaN(xwind) ? '' :
-            (xwind == 0 ? '0' :
+        Number.isNaN(xwind) ? '' :
+            (xwind === 0 ? '0' :
                 (xwind > 0 ? `${formatInt(xwind)} →` : `← ${formatInt(-xwind)}`)));
     setValue(tools.querySelector('.wc-head'), formatInt(Math.round(Math.cos(wcd) * wcvel)));
 
@@ -767,7 +1372,7 @@ const refreshTools = () => {
     const hHdg = parseDirection(tools.querySelector('.h-hdg'));
     let holdingType = "";
     let ob = parseDirection(outbound);
-    if (!isNaN(ob) && !isNaN(hHdg)) {
+    if (!Number.isNaN(ob) && !Number.isNaN(hHdg)) {
         if ((tools.querySelector('.h-left') as HTMLInputElement).checked) {
             holdingType = withinDirRange(ob, hHdg + 110, hHdg - 70) ? "D" :
                 (withinDirRange(ob, hHdg + 1, hHdg + 110) ? "P" : "T");
@@ -778,36 +1383,25 @@ const refreshTools = () => {
     }
     setValue(tools.querySelector('.h-type'), holdingType);
 
-    const vr = parseValue(tools.querySelector('.vr'), 0);
-    const mc = parseDirection(tools.querySelector('.tc')) + vr;
-    let windir = parseDirection(tools.querySelector('.windir'));
-    let winvel = parsePositiveValue(tools.querySelector('.winvel'));
-    if (winvel == undefined) winvel = 0;
-    if (windir == undefined) windir = 0;
+    const variationCorrection = parseValue(tools.querySelector('.vr'), 0);
+    const trueCourse = parseDirection(tools.querySelector('.tc'));
+    const windSpeed = parsePositiveValue(tools.querySelector('.winvel'));
+    const windDirection = windSpeed === 0
+        ? parseDirection(tools.querySelector('.windir'), 0)
+        : parseDirection(tools.querySelector('.windir'));
     const tas = parsePositiveValue(tools.querySelector('.tas'));
-    const windAngle = deg2rad(windir - mc);
-    // Positive crosswind means correction to the right.
-    const crosswind = Math.sin(windAngle) * winvel;
-    // Positive headwind, negative tailwind.
-    const headwind = Math.cos(windAngle) * winvel;
-    const wcaRatio = crosswind / tas;
-    if (Math.abs(wcaRatio) > 1 || isNaN(wcaRatio)) {
-        // Wind too strong to maintain the selected course.
+    const windTriangle = calculateWindTriangle(trueCourse, tas, windDirection, windSpeed);
+    if (!windTriangle || !Number.isFinite(variationCorrection)) {
         clearValue(tools.querySelector('.hdg'));
         clearValue(tools.querySelector('.gs'));
     } else {
-        // Exact wind correction angle.
-        const wcaRad = Math.asin(wcaRatio);
-        const wca = rad2deg(wcaRad);
-        // Round only for heading display.
-        const wcaDisplay = Math.round(wca);
-        const e6bHdg = `${formatDir(mc + wcaDisplay)}M,${formatDir(mc + wcaDisplay - vr)}T`;
-        if (!isNaN(mc) && !isNaN(wca) && !isNaN(vr)) {
-            setValue(tools.querySelector('.hdg'), e6bHdg);
-        }
-        // Exact ground speed along the course.
-        const gs = tas * Math.cos(wcaRad) - headwind;
-        setValue(tools.querySelector('.gs'), formatInt(gs > 0 ? gs : NaN));
+        const magneticHeading = magneticHeadingFromTrue(
+            windTriangle.trueHeading,
+            variationCorrection,
+        );
+        setValue(tools.querySelector('.hdg'),
+            `${formatDir(magneticHeading)}M,${formatDir(windTriangle.trueHeading)}T`);
+        setValue(tools.querySelector('.gs'), formatInt(windTriangle.groundSpeed));
     }
     let slope = parsePositiveValue(tools.querySelector('.d-slope'));
     if (slope >= 90) {
@@ -816,7 +1410,7 @@ const refreshTools = () => {
     const slopeRad = deg2rad(slope);
     const dgs = parsePositiveValue(tools.querySelector('.d-gs'));
     const dh = parsePositiveValue(tools.querySelector('.d-alt'));
-    setValue(tools.querySelector('.d-dist'), formatInt(Math.ceil(dh / (nauticalInFeet * Math.tan(slopeRad)))));
+    setValue(tools.querySelector('.d-dist'), formatFloat(descentDistance(dh, slope), 1));
     setValue(tools.querySelector('.d-rate'), formatInt(Math.ceil(dgs * nauticalInFeet / 60 * Math.tan(slopeRad))));
 
     const ttas = parsePositiveValue(tools.querySelector('.t-tas'));
@@ -865,168 +1459,227 @@ const refreshTools = () => {
             formatInt(Number.isFinite(gradient) && Number.isFinite(fpmGs) && fpmGs > 0 ?
                 gradient * fpmGs / 60 : NaN));
     }
-}
+};
 
 const regUpdatable = (updatable: NodeListOf<Element>, func: () => void) => {
     for (let i = 0; i < updatable.length; i++) {
         updatable[i].addEventListener('input', () => func());
     }
-}
+};
 
-const genLimitChars = (elem: HTMLElement, n: number) => {
-    return (e: KeyboardEvent) => {
-        if (e.which == 13 || (e.which != 8 && elem.innerText.length >= n)) {
-            e.preventDefault();
+const normalizeEditableText = (text: string, maxLength: number) =>
+    text.replace(/[\r\n]/g, '').slice(0, maxLength);
+
+const moveCaretToEnd = (element: HTMLElement) => {
+    const selection = window.getSelection();
+    if (!selection) {
+        return;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+};
+
+const enforceCharLimit = (element: HTMLElement, maxLength: number) => {
+    const text = normalizeEditableText(element.innerText, maxLength);
+    if (text !== element.innerText) {
+        element.innerText = text;
+        if (document.activeElement === element) {
+            moveCaretToEnd(element);
         }
     }
-}
+};
 
 const regCharLimit = (s: string, n: number) => {
-    let limit = document.querySelectorAll<HTMLElement>(s);
-    for (let i = 0; i < limit.length; i++) {
-        let elem = limit[i];
-        elem.addEventListener("keypress", genLimitChars(elem, n));
-        elem.addEventListener("paste", (e: ClipboardEvent) => {
-            let pastedText: string | undefined;
-            if (window.clipboardData && window.clipboardData.getData) { // IE
-                pastedText = window.clipboardData.getData('Text');
-            } else if (e.clipboardData && e.clipboardData.getData) {
-                pastedText = e.clipboardData.getData('text/plain');
+    const limitedElements = document.querySelectorAll<HTMLElement>(s);
+    for (const element of limitedElements) {
+        element.addEventListener('beforeinput', (event: InputEvent) => {
+            if (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak') {
+                event.preventDefault();
             }
-            if (typeof pastedText !== 'string') {
-                return;
-            }
-            e.preventDefault();
-            elem.textContent = pastedText.slice(0, n);
-            elem.dispatchEvent(new Event('input', { bubbles: true }));
         });
+        element.addEventListener('input', () => enforceCharLimit(element, n));
     }
-}
+};
 const jurl = JsonUrl('lzma');
-const getUserData = () => {
-    const getText = (dom: Element, classes: string[], res: Record<string, unknown>) => {
-        for (let i = 0; i < classes.length; i++) {
-            const c = classes[i];
-            res[c] = (dom.querySelector('.' + c) as HTMLElement).innerText;
-        }
+const weightStateClasses = [
+    'empty-mass',
+    'empty-moment',
+    'front-left-mass',
+    'front-right-mass',
+    'rear-left-mass',
+    'rear-right-mass',
+    'baggage-std-mass',
+    'baggage-tube-mass',
+    'baggage-ext-forward-mass',
+    'baggage-ext-aft-mass',
+    'fuel-vol',
+] as const;
+const environmentStateClasses = [
+    'oat',
+    'qnh',
+    'press-alt',
+    'field-alt',
+    'headwind',
+    'obst',
+] as const;
+const stateCookieName = 'da40-state';
+
+const refreshCalculations = () => {
+    refresh();
+    refreshTools();
+};
+
+const writeStateCookie = (data: string) => {
+    document.cookie = `${stateCookieName}=${encodeURIComponent(data)}; Max-Age=31536000; Path=/; Secure; SameSite=Lax`;
+};
+
+const collectText = (
+    container: Element,
+    classes: readonly string[],
+    result: Record<string, unknown>,
+) => {
+    for (const className of classes) {
+        result[className] = container.querySelector<HTMLElement>(`.${className}`)!.innerText;
     }
-    let res: Record<string, unknown> = {};
+};
+
+const getUserData = () => {
+    const result: Record<string, unknown> = {};
     const weights = document.getElementById('weights')!;
     const env = document.getElementById('env')!;
-    getText(weights, [
-        'empty-mass',
-        'empty-moment',
-        'front-left-mass',
-        'front-right-mass',
-        'rear-left-mass',
-        'rear-right-mass',
-        'baggage-std-mass',
-        'baggage-tube-mass',
-        'baggage-ext-forward-mass',
-        'baggage-ext-aft-mass',
-        'fuel-vol'
-    ], res);
-    getText(env, [
-        'oat',
-        'qnh',
-        'press-alt',
-        'field-alt',
-        'headwind',
-        'obst',
-    ], res);
-    const isMAM = (weights.querySelector('input[name="mam-40-227"]') as HTMLInputElement).checked;
-    const isLongRange = (weights.querySelector('input[name="longrange-tank"]') as HTMLInputElement).checked;
-    res['mam-40-227'] = isMAM;
-    res['longrange-tank'] = isLongRange;
-    return jurl.compress(res);
+    collectText(weights, weightStateClasses, result);
+    collectText(env, environmentStateClasses, result);
+    result['mam-40-227'] = weights.querySelector<HTMLInputElement>(
+        'input[name="mam-40-227"]',
+    )!.checked;
+    result['longrange-tank'] = weights.querySelector<HTMLInputElement>(
+        'input[name="longrange-tank"]',
+    )!.checked;
+    return jurl.compress(result);
 }
 
-const setText = (dom: Element, classes: string[], res: Record<string, unknown>) => {
-    for (let i = 0; i < classes.length; i++) {
-        const c = classes[i];
-        if (res[c] !== undefined) {
-            (dom.querySelector('.' + c) as HTMLElement).innerText = res[c] as string;
+const restoreText = (
+    container: Element,
+    classes: readonly string[],
+    state: Record<string, unknown>,
+) => {
+    for (const className of classes) {
+        const value = state[className];
+        if (typeof value === 'string' || typeof value === 'number') {
+            const element = container.querySelector<HTMLElement>(`.${className}`)!;
+            const limitClass = [...element.classList].find(name => /^max\d+$/.test(name));
+            const maxLength = limitClass ? Number(limitClass.slice(3)) : Number.MAX_SAFE_INTEGER;
+            element.innerText = normalizeEditableText(String(value), maxLength);
         }
     }
-}
+};
 
-const setUserData = (data: string) => {
-    jurl.decompress(data).then(json => {
-        document.cookie = `da40-state=${encodeURIComponent(data)}; Max-Age=31536000; Path=/; Secure; SameSite=Lax`;
+const setUserData = async (data: string) => {
+    if (!data) {
+        refreshCalculations();
+        return;
+    }
+
+    try {
+        const state = await jurl.decompress(data);
+        if (state === null || typeof state !== 'object' || Array.isArray(state)) {
+            throw new TypeError('Saved state must be an object.');
+        }
         const weights = document.getElementById('weights')!;
         const env = document.getElementById('env')!;
-        setText(weights, [
-            'empty-mass',
-            'empty-moment',
-            'front-left-mass',
-            'front-right-mass',
-            'rear-left-mass',
-            'rear-right-mass',
-            'baggage-std-mass',
-            'baggage-tube-mass',
-            'baggage-ext-forward-mass',
-            'baggage-ext-aft-mass',
-            'fuel-vol'
-        ], json);
-        setText(env, [
-            'oat',
-            'qnh',
-            'press-alt',
-            'field-alt',
-            'headwind',
-            'obst',
-        ], json);
-        (weights.querySelector('input[name="mam-40-227"]') as HTMLInputElement).checked = json['mam-40-227'] as boolean;
-        (weights.querySelector('input[name="longrange-tank"]') as HTMLInputElement).checked = json['longrange-tank'] as boolean;
-        refresh();
-        refreshTools();
-    }).catch(_ => {
-        refresh();
-        refreshTools();
-    });
-}
-const saveChanges = () => getUserData().then(u => {
-    document.cookie = `da40-state=${encodeURIComponent(u)}; Max-Age=31536000; Path=/; Secure; SameSite=Lax`;
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.searchParams.set('s', u);
-    url.hash = '';
-    window.history.replaceState(null, '', url.href);
-    const savedUrl = window.location.href;
-    navigator.clipboard.writeText(savedUrl);
-    document.getElementById('url')!.innerHTML = `Saved and copied to clipboard: <textarea>${savedUrl}</textarea>`;
-});
+        restoreText(weights, weightStateClasses, state);
+        restoreText(env, environmentStateClasses, state);
+        if (typeof state['mam-40-227'] === 'boolean') {
+            weights.querySelector<HTMLInputElement>('input[name="mam-40-227"]')!.checked =
+                state['mam-40-227'];
+        }
+        if (typeof state['longrange-tank'] === 'boolean') {
+            weights.querySelector<HTMLInputElement>('input[name="longrange-tank"]')!.checked =
+                state['longrange-tank'];
+        }
+        writeStateCookie(data);
+    } catch (error) {
+        console.warn('Ignoring invalid saved state.', error);
+    }
+    refreshCalculations();
+};
+
+const showSavedUrl = (savedUrl: string, copied: boolean) => {
+    const output = document.getElementById('url')!;
+    const message = document.createElement('span');
+    const textarea = document.createElement('textarea');
+    message.textContent = copied
+        ? 'Saved and copied to clipboard:'
+        : 'Saved. Copy this link:';
+    textarea.value = savedUrl;
+    textarea.readOnly = true;
+    output.replaceChildren(message, textarea);
+    if (!copied) {
+        textarea.focus();
+        textarea.select();
+    }
+};
+
+const saveChanges = async () => {
+    const output = document.getElementById('url')!;
+    try {
+        const state = await getUserData();
+        writeStateCookie(state);
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.searchParams.set('s', state);
+        url.hash = '';
+        window.history.replaceState(null, '', url.href);
+        const savedUrl = window.location.href;
+        let copied = false;
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(savedUrl);
+                copied = true;
+            }
+        } catch {
+            // The URL remains selectable when clipboard permission is unavailable.
+        }
+        showSavedUrl(savedUrl, copied);
+    } catch (error) {
+        console.error('Could not save the current state.', error);
+        output.textContent = 'Could not save the current state.';
+    }
+};
 
 const recover = () => {
     const query = new URLSearchParams(window.location.search).get('s');
-    const cookie = document.cookie.match(/(?:^|;\s*)da40-state=([^;]*)/);
-    setUserData(query || (cookie ? decodeURIComponent(cookie[1]) : ''));
+    const cookie = document.cookie.match(new RegExp(`(?:^|;\\s*)${stateCookieName}=([^;]*)`));
+    let cookieState = '';
+    if (cookie) {
+        try {
+            cookieState = decodeURIComponent(cookie[1]);
+        } catch {
+            console.warn('Ignoring malformed saved-state cookie.');
+        }
+    }
+    void setUserData(query || cookieState);
 };
 
 const regTandemInput = (container: Element, a: string, b: string) => {
     const ea = container.querySelector<HTMLElement>(a)!;
     const eb = container.querySelector<HTMLElement>(b)!;
-    ea.addEventListener('focus', () => {
-        ea.classList.toggle('active');
-        if (eb.classList.contains('active')) {
-            eb.innerText = '';
-            eb.classList.toggle('active');
-        }
-    });
-    ea.addEventListener('blur', () => {
-        ea.classList.toggle('active');
-    });
-    eb.addEventListener('focus', () => {
-        eb.classList.toggle('active');
-        if (ea.classList.contains('active')) {
-            ea.innerText = '';
-            ea.classList.toggle('active');
-        }
-    });
-    eb.addEventListener('blur', () => {
-        eb.classList.toggle('active');
-    });
-}
+    const register = (element: HTMLElement, counterpart: HTMLElement) => {
+        element.addEventListener('focus', () => {
+            element.classList.add('active');
+            if (counterpart.classList.contains('active')) {
+                counterpart.innerText = '';
+                counterpart.classList.remove('active');
+            }
+        });
+        element.addEventListener('blur', () => element.classList.remove('active'));
+    };
+    register(ea, eb);
+    register(eb, ea);
+};
 
 const tools = document.getElementById('tools')!;
 const env = document.getElementById('env')!;
@@ -1054,14 +1707,12 @@ const initHoldingDiagram = () => {
     const obx1 = ibx1 + polardX(50, ob + 90);
     const oby1 = iby1 - polardY(50, ob + 90);
 
-    ibPath.classList = "inbound";
     ibPath.setAttribute("d", `M ${ibx0},${iby0} L ${ibx1},${iby1}`);
     ibPath.setAttribute("stroke", "red");
     ibPath.setAttribute("stroke-width", strokeWidth);
     ibPath.setAttribute("opacity", "1");
     ibPath.setAttribute("fill", "none");
 
-    obPath.classList = "outbound";
     obPath.setAttribute("d", `M ${obx0},${oby0} L ${obx1},${oby1}`);
     obPath.setAttribute("stroke", "red");
     obPath.setAttribute("stroke-width", strokeWidth);
@@ -1078,13 +1729,15 @@ window.addEventListener('load', () => {
     recover();
     initHoldingDiagram();
 });
-const editable = document.querySelectorAll<HTMLElement>('table.main td div');
+const editable = document.querySelectorAll<HTMLElement>('table.main td div.update');
 for (let i = 0; i < editable.length; i++) {
     const e = editable[i];
     e.setAttribute('contenteditable', 'true');
     const disabler = (event: DragEvent) => {
         event.preventDefault();
-        event.dataTransfer!.dropEffect = 'none';
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'none';
+        }
     };
     e.addEventListener('dragenter', disabler);
     e.addEventListener('dragover', disabler);
@@ -1109,3 +1762,4 @@ regCharLimit('table.main .max3', 3);
 regCharLimit('table.main .max4', 4);
 regCharLimit('table.main .max6', 6);
 regCharLimit('table.main .max8', 8);
+document.getElementById('save')!.addEventListener('click', () => void saveChanges());

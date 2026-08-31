@@ -3,8 +3,8 @@ interface JsonUrlCodec {
   decompress(value: string): Promise<Record<string, unknown>>;
 }
 
-interface Window {
-  clipboardData?: DataTransfer;
+interface Navigator {
+  readonly standalone?: boolean;
 }
 
 declare function JsonUrl(algorithm: "lzma"): JsonUrlCodec;

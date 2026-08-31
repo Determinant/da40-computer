@@ -14,5 +14,10 @@
     "skipLibCheck": true,
     "sourceMap": false
   },
-  "include": ["src/**/*.ts"]
+  "files": [
+    "src/globals.d.ts",
+    "src/chart-trace.ts",
+    "src/da40.ts",
+    "src/pwa.ts"
+  ]
 }

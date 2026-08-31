@@ -4,8 +4,11 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const host = "127.0.0.1";
-const startingPort = Number.parseInt(process.env.DA40_PORT ?? "8000", 10);
-const lastPort = startingPort + 10;
+const startingPort = Number(process.env.DA40_PORT ?? 8000);
+if (!Number.isInteger(startingPort) || startingPort < 1 || startingPort > 65535) {
+  throw new RangeError("DA40_PORT must be an integer from 1 through 65535.");
+}
+const lastPort = Math.min(startingPort + 10, 65535);
 let port = startingPort;
 const outputDirectory = resolve(fileURLToPath(new URL("../dist/", import.meta.url)));
 const contentTypes = new Map([
