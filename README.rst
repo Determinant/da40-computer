@@ -24,9 +24,10 @@ treated as permanent storage.
 Development
 -----------
 
-Install the development dependencies and build the site::
+Node.js 22 or newer is required. Install the pinned development dependencies
+and build the site::
 
-  npm install
+  npm ci
   npm run build
 
 Build and serve the site locally::
@@ -39,10 +40,17 @@ different starting port.
 
 The build writes the deployable static site to ``dist/``, vendors the pinned
 state codec, and generates a content-versioned service-worker cache containing
-every deployable file. Verification covers the offline lifecycle, manifest and
-icon metadata, local runtime resources, codec behavior, and chart tracing. Run
-``npm run check`` to type-check the TypeScript sources without emitting files,
-or ``npm test`` to run the calculator and chart regression tests directly.
+every deployable file. Verification covers the offline lifecycle, form and
+selector contracts, manifest and icon metadata, local runtime resources, codec
+behavior, and chart tracing. Run ``npm run check`` to type-check the TypeScript
+sources without emitting files. ``npm test`` performs a clean, complete build
+and runs the full regression suite, leaving a deployable ``dist/`` directory.
+
+``json-url`` is intentionally pinned at 4.0.0 because its LZMA wire format is
+part of the saved-link compatibility contract. Its browser bundles are copied
+locally during the build, exercised against a legacy fixture, and shipped with
+the license files supplied by the bundled dependency packages. Review that
+constraint before replacing or upgrading the codec.
 
 Project layout
 --------------

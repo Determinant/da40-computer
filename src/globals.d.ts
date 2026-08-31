@@ -7,4 +7,4 @@ interface Navigator {
   readonly standalone?: boolean;
 }
 
-declare function JsonUrl(algorithm: "lzma"): JsonUrlCodec;
+declare function JsonUrl(algorithm: 'lzma'): JsonUrlCodec;

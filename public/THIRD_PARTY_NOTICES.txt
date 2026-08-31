@@ -10,11 +10,15 @@ The complete license is in assets/fonts/B612-OFL.txt.
 Saved-link codec
 ----------------
 
-The local saved-link codec uses json-url 4.0.0 (ISC), including its LZMA,
-MessagePack, and URL-safe Base64 paths. The application deploys only the
-browser entry point and chunks required by the LZMA codec. Webpack-generated
-license notices are retained beside those JavaScript files in
-assets/vendor/json-url/*.LICENSE.txt.
+The local saved-link codec uses json-url 4.0.0. Its package metadata declares
+the ISC license; the exact LICENSE file shipped in the pinned npm artifact is
+retained with the deployed app. The codec includes its LZMA, MessagePack, and
+URL-safe Base64 paths. The application deploys only the browser entry point
+and chunks required by the LZMA codec.
+
+Webpack-generated notices remain beside the JavaScript bundles. License files
+supplied by the codec and bundled dependency packages are retained in
+assets/vendor/json-url/licenses/.
 
 Relevant upstream projects:
 

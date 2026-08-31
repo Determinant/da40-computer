@@ -346,30 +346,42 @@ const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
             return NaN;
         }
         return chart.output(out);
+    };
+};
+
+const hasStringValue = (element: Element): element is Element & { value: string } =>
+    typeof (element as Element & { value?: unknown }).value === 'string';
+
+const getValue = (element: Element | null) => {
+    if (!element) {
+        return '';
+    }
+    return hasStringValue(element) ? element.value : (element as HTMLElement).innerText;
+};
+
+const setValue = (element: Element | null, value: unknown) => {
+    if (!element) {
+        return;
+    }
+    const text = String(value);
+    if (hasStringValue(element)) {
+        element.value = text;
+    } else {
+        (element as HTMLElement).innerText = text;
     }
 };
 
-const setValue = (dom: Element | null, v: unknown) => {
-    if (dom) {
-        (dom as HTMLElement).innerText = String(v);
-    }
-};
-
-const clearValue = (dom: Element | null) => {
-    if (dom) {
-        (dom as HTMLElement).innerText = '';
-    }
-}
+const clearValue = (element: Element | null) => setValue(element, '');
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
-const formatFloat = (v: unknown, prec?: number) => isFiniteNumber(v) ? v.toFixed(prec === undefined ? 2 : prec) : "";
-const formatInt = (v: unknown) => isFiniteNumber(v) ? v.toFixed(0) : "";
+const formatFloat = (v: unknown, prec?: number) => isFiniteNumber(v) ? v.toFixed(prec === undefined ? 2 : prec) : '';
+const formatInt = (v: unknown) => isFiniteNumber(v) ? v.toFixed(0) : '';
 const formatInts = (...values: unknown[]) =>
-    values.every(isFiniteNumber) ? values.map(formatInt).join(',') : '';
+    values.every(isFiniteNumber) ? values.map(formatInt).join(', ') : '';
 const rectifyDir = (v: number) => (v % 360 + 360) % 360;
 const formatDir = (v: unknown) => {
     if (!isFiniteNumber(v)) {
-        return "";
+        return '';
     }
     const rounded = Math.round(rectifyDir(v)) % 360;
     return padZero(rounded || 360, 3);
@@ -388,36 +400,36 @@ const withinDirRange = (d: number, from: number, to: number) => {
         d += 360;
     }
     return d <= to;
-}
+};
 
 const parseQNH = (e: Element | null) => {
     const x = parseValue(e);
     return (20 <= x && x <= 40) ? x : NaN;
-}
+};
 
 const parseValue = (e: Element | null, d = NaN): number => {
-    const text = (e as HTMLElement).innerText.trim();
+    const text = getValue(e).trim();
     if (text === '') {
         return d;
     }
     const x = Number(text);
     return Number.isFinite(x) ? x : NaN;
-}
+};
 
 const parsePositiveValue = (e: Element | null, d?: number): number => {
     const x = parseValue(e, d);
     return x >= 0 ? x : NaN;
-}
+};
 
 const parseDirection = (e: Element | null, d?: number): number => {
     const x = parseValue(e, d);
     return 0 <= x && x <= 360 ? x : NaN;
-}
+};
 
 const parseRunway = (e: Element | null, d?: number): number => {
     const x = parseValue(e, d);
     return Number.isInteger(x) && 1 <= x && x <= 36 ? x : NaN;
-}
+};
 
 const rad2deg = (r: number) => r / Math.PI * 180;
 const deg2rad = (d: number) => d / 180 * Math.PI;
@@ -458,7 +470,7 @@ const magneticHeadingFromTrue = (trueHeading: number, variationCorrection: numbe
 
 const padZero = (num: number, size: number) => {
     return String(num).padStart(size, '0');
-}
+};
 
 const arms = [
     90.6, // front left
@@ -1088,7 +1100,7 @@ const checkCG = (mass: number, cg: number, isLongRange: boolean, isMAM: boolean)
         return -1;
     }
     return 0;
-}
+};
 
 // AFM 6.4.10 requires the CG to be inside the envelope both with empty fuel
 // tanks (row 7) and with usable fuel included (row 9).
@@ -1175,11 +1187,11 @@ const refresh = () => {
     const elev = parseValue(env.querySelector('.field-alt'));
 
     if (qnh.classList.contains('active')) {
-        press.textContent = formatInt((29.92 - parseQNH(qnh)) * 1000 + elev);
+        setValue(press, formatInt((29.92 - parseQNH(qnh)) * 1000 + elev));
     } else if (press.classList.contains('active')) {
-        qnh.textContent = formatFloat(29.92 - (parseValue(press) - elev) / 1000, 2);
+        setValue(qnh, formatFloat(29.92 - (parseValue(press) - elev) / 1000, 2));
     } else {
-        press.textContent = formatInt((29.92 - parseQNH(qnh)) * 1000 + elev);
+        setValue(press, formatInt((29.92 - parseQNH(qnh)) * 1000 + elev));
     }
 
     let totalMass = parsePositiveValue(weights.querySelector('.empty-mass'));
@@ -1238,9 +1250,9 @@ const refresh = () => {
     }
     let cgMark = formatFloat(cg);
     if (cgOut > 0) {
-        cgMark += ">>";
+        cgMark += '>>';
     } else if (cgOut < 0) {
-        cgMark = "<<" + cgMark;
+        cgMark = '<<' + cgMark;
     }
     setValue(cgOutput, cgMark);
     if (Number.isNaN(cg)) {
@@ -1318,7 +1330,7 @@ const refresh = () => {
     const isa = 15 - 1.98 * (pressAlt / 1000);
     const densityAlt = pressAlt + 118.8 * (oat - isa);
     setValue(env.querySelector('.density-alt'), formatInt(densityAlt));
-}
+};
 
 const refreshEnginePerformance = (tools: HTMLElement) => {
     const mixture: FuelMixture =
@@ -1365,20 +1377,20 @@ const refreshTools = () => {
     const inbound = tools.querySelector('.h-in')!;
     const outbound = tools.querySelector('.h-out')!;
     if (inbound.classList.contains('active')) {
-        outbound.textContent = formatDir((parseDirection(inbound) + 180) % 360);
+        setValue(outbound, formatDir((parseDirection(inbound) + 180) % 360));
     } else if (outbound.classList.contains('active')) {
-        inbound.textContent = formatDir((parseDirection(outbound) + 180) % 360);
+        setValue(inbound, formatDir((parseDirection(outbound) + 180) % 360));
     }
     const hHdg = parseDirection(tools.querySelector('.h-hdg'));
-    let holdingType = "";
+    let holdingType = '';
     let ob = parseDirection(outbound);
     if (!Number.isNaN(ob) && !Number.isNaN(hHdg)) {
         if ((tools.querySelector('.h-left') as HTMLInputElement).checked) {
-            holdingType = withinDirRange(ob, hHdg + 110, hHdg - 70) ? "D" :
-                (withinDirRange(ob, hHdg + 1, hHdg + 110) ? "P" : "T");
+            holdingType = withinDirRange(ob, hHdg + 110, hHdg - 70) ? 'D' :
+                (withinDirRange(ob, hHdg + 1, hHdg + 110) ? 'P' : 'T');
         } else {
-            holdingType = withinDirRange(ob, hHdg + 70, hHdg - 110) ? "D" :
-                (withinDirRange(ob, hHdg, hHdg + 70) ? "T" : "P");
+            holdingType = withinDirRange(ob, hHdg + 70, hHdg - 110) ? 'D' :
+                (withinDirRange(ob, hHdg, hHdg + 70) ? 'T' : 'P');
         }
     }
     setValue(tools.querySelector('.h-type'), holdingType);
@@ -1419,33 +1431,33 @@ const refreshTools = () => {
     const ccel = tools.querySelector('.c-cel')!;
     const cfah = tools.querySelector('.c-fah')!;
     if (ccel.classList.contains('active')) {
-        cfah.textContent = formatFloat(parseValue(ccel) * 1.8 + 32);
+        setValue(cfah, formatFloat(parseValue(ccel) * 1.8 + 32));
     } else if (cfah.classList.contains('active')) {
-        ccel.textContent = formatFloat((parseValue(cfah) - 32) * 5 / 9);
+        setValue(ccel, formatFloat((parseValue(cfah) - 32) * 5 / 9));
     }
 
     const cnm = tools.querySelector('.c-nm')!;
     const csm = tools.querySelector('.c-sm')!;
     if (cnm.classList.contains('active')) {
-        csm.textContent = formatFloat(parseValue(cnm) * 1.15078);
+        setValue(csm, formatFloat(parseValue(cnm) * 1.15078));
     } else if (csm.classList.contains('active')) {
-        cnm.textContent = formatFloat(parseValue(csm) * 0.868976);
+        setValue(cnm, formatFloat(parseValue(csm) * 0.868976));
     }
 
     const cft = tools.querySelector('.c-ft')!;
     const cm = tools.querySelector('.c-m')!;
     if (cft.classList.contains('active')) {
-        cm.textContent = formatInt(parseValue(cft) * 0.3048);
+        setValue(cm, formatInt(parseValue(cft) * 0.3048));
     } else if (cm.classList.contains('active')) {
-        cft.textContent = formatInt(parseValue(cm) / 0.3048);
+        setValue(cft, formatInt(parseValue(cm) / 0.3048));
     }
 
     const clb = tools.querySelector('.c-lb')!;
     const ckg = tools.querySelector('.c-kg')!;
     if (clb.classList.contains('active')) {
-        ckg.textContent = formatInt(parseValue(clb) * 0.45359237);
+        setValue(ckg, formatInt(parseValue(clb) * 0.45359237));
     } else if (ckg.classList.contains('active')) {
-        clb.textContent = formatInt(parseValue(ckg) / 0.45359237);
+        setValue(clb, formatInt(parseValue(ckg) / 0.45359237));
     }
 
     const fpmGs = parsePositiveValue(tools.querySelector('.fpm-gs'));
@@ -1467,42 +1479,8 @@ const regUpdatable = (updatable: NodeListOf<Element>, func: () => void) => {
     }
 };
 
-const normalizeEditableText = (text: string, maxLength: number) =>
+const normalizeInputText = (text: string, maxLength: number) =>
     text.replace(/[\r\n]/g, '').slice(0, maxLength);
-
-const moveCaretToEnd = (element: HTMLElement) => {
-    const selection = window.getSelection();
-    if (!selection) {
-        return;
-    }
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range);
-};
-
-const enforceCharLimit = (element: HTMLElement, maxLength: number) => {
-    const text = normalizeEditableText(element.innerText, maxLength);
-    if (text !== element.innerText) {
-        element.innerText = text;
-        if (document.activeElement === element) {
-            moveCaretToEnd(element);
-        }
-    }
-};
-
-const regCharLimit = (s: string, n: number) => {
-    const limitedElements = document.querySelectorAll<HTMLElement>(s);
-    for (const element of limitedElements) {
-        element.addEventListener('beforeinput', (event: InputEvent) => {
-            if (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak') {
-                event.preventDefault();
-            }
-        });
-        element.addEventListener('input', () => enforceCharLimit(element, n));
-    }
-};
 const jurl = JsonUrl('lzma');
 const weightStateClasses = [
     'empty-mass',
@@ -1542,7 +1520,7 @@ const collectText = (
     result: Record<string, unknown>,
 ) => {
     for (const className of classes) {
-        result[className] = container.querySelector<HTMLElement>(`.${className}`)!.innerText;
+        result[className] = getValue(container.querySelector(`.${className}`));
     }
 };
 
@@ -1559,7 +1537,7 @@ const getUserData = () => {
         'input[name="longrange-tank"]',
     )!.checked;
     return jurl.compress(result);
-}
+};
 
 const restoreText = (
     container: Element,
@@ -1572,7 +1550,7 @@ const restoreText = (
             const element = container.querySelector<HTMLElement>(`.${className}`)!;
             const limitClass = [...element.classList].find(name => /^max\d+$/.test(name));
             const maxLength = limitClass ? Number(limitClass.slice(3)) : Number.MAX_SAFE_INTEGER;
-            element.innerText = normalizeEditableText(String(value), maxLength);
+            setValue(element, normalizeInputText(String(value), maxLength));
         }
     }
 };
@@ -1671,7 +1649,7 @@ const regTandemInput = (container: Element, a: string, b: string) => {
         element.addEventListener('focus', () => {
             element.classList.add('active');
             if (counterpart.classList.contains('active')) {
-                counterpart.innerText = '';
+                clearValue(counterpart);
                 counterpart.classList.remove('active');
             }
         });
@@ -1683,43 +1661,29 @@ const regTandemInput = (container: Element, a: string, b: string) => {
 
 const tools = document.getElementById('tools')!;
 const env = document.getElementById('env')!;
+const toolsDrawer = document.getElementById('tools-drawer') as HTMLDialogElement;
+const toolsToggle = document.getElementById('tools-toggle')!;
+const toolsClose = document.getElementById('tools-close')!;
 
-const initHoldingDiagram = () => {
-    const holdingDiagram = tools.querySelector<SVGSVGElement>('.h-diagram')!;
-    const strokeWidth = '2px';
-    const ob = 45;
-    const polarX = (r: number, deg: number) => Math.sin(deg2rad(deg)) * r + 100;
-    const polarY = (r: number, deg: number) => 100 - Math.cos(deg2rad(deg)) * r;
-    const polardX = (r: number, deg: number) => Math.sin(deg2rad(deg)) * r;
-    const polardY = (r: number, deg: number) => Math.cos(deg2rad(deg)) * r;
-    const ibPath = document.createElementNS(holdingDiagram.namespaceURI, "path");
-    const obPath = document.createElementNS(holdingDiagram.namespaceURI, "path");
-    holdingDiagram.appendChild(ibPath);
-    holdingDiagram.appendChild(obPath);
-
-    const ibx0 = polarX(0, ob);
-    const iby0 = polarY(0, ob);
-    const ibx1 = polarX(60, ob);
-    const iby1 = polarY(60, ob);
-
-    const obx0 = ibx0 + polardX(50, ob + 90);
-    const oby0 = iby0 - polardY(50, ob + 90);
-    const obx1 = ibx1 + polardX(50, ob + 90);
-    const oby1 = iby1 - polardY(50, ob + 90);
-
-    ibPath.setAttribute("d", `M ${ibx0},${iby0} L ${ibx1},${iby1}`);
-    ibPath.setAttribute("stroke", "red");
-    ibPath.setAttribute("stroke-width", strokeWidth);
-    ibPath.setAttribute("opacity", "1");
-    ibPath.setAttribute("fill", "none");
-
-    obPath.setAttribute("d", `M ${obx0},${oby0} L ${obx1},${oby1}`);
-    obPath.setAttribute("stroke", "red");
-    obPath.setAttribute("stroke-width", strokeWidth);
-    obPath.setAttribute("opacity", "1");
-    obPath.setAttribute("fill", "none");
-
-};
+toolsToggle.addEventListener('click', () => {
+    if (!toolsDrawer.open) {
+        toolsDrawer.showModal();
+        toolsToggle.setAttribute('aria-expanded', 'true');
+    }
+});
+toolsClose.addEventListener('click', () => toolsDrawer.close());
+toolsDrawer.addEventListener('click', event => {
+    const bounds = toolsDrawer.getBoundingClientRect();
+    const outsideDrawer = event.clientX < bounds.left || event.clientX > bounds.right ||
+        event.clientY < bounds.top || event.clientY > bounds.bottom;
+    if (event.target === toolsDrawer && outsideDrawer) {
+        toolsDrawer.close();
+    }
+});
+toolsDrawer.addEventListener('close', () => {
+    toolsToggle.setAttribute('aria-expanded', 'false');
+    toolsToggle.focus();
+});
 
 window.addEventListener('load', () => {
     takeoffCalc = createChartCalculator(takeoffChart);
@@ -1727,21 +1691,7 @@ window.addEventListener('load', () => {
     takeoffClimbCalc = createChartCalculator(takeoffClimbChart);
     cruiseClimbCalc = createChartCalculator(cruiseClimbChart);
     recover();
-    initHoldingDiagram();
 });
-const editable = document.querySelectorAll<HTMLElement>('table.main td div.update');
-for (let i = 0; i < editable.length; i++) {
-    const e = editable[i];
-    e.setAttribute('contenteditable', 'true');
-    const disabler = (event: DragEvent) => {
-        event.preventDefault();
-        if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = 'none';
-        }
-    };
-    e.addEventListener('dragenter', disabler);
-    e.addEventListener('dragover', disabler);
-}
 
 regTandemInput(tools, '.h-in', '.h-out');
 regTandemInput(tools, '.c-cel', '.c-fah');
@@ -1757,9 +1707,4 @@ regUpdatable(document.querySelectorAll('#weights td .update'), refresh);
 regUpdatable(document.querySelectorAll('#env td .update'), refresh);
 regUpdatable(document.querySelectorAll('#tools td .update'), refreshTools);
 
-regCharLimit('table.main .max2', 2);
-regCharLimit('table.main .max3', 3);
-regCharLimit('table.main .max4', 4);
-regCharLimit('table.main .max6', 6);
-regCharLimit('table.main .max8', 8);
 document.getElementById('save')!.addEventListener('click', () => void saveChanges());

@@ -61,7 +61,7 @@ const assertClose = (actual, expected, tolerance = 1e-9) => {
 test('paired integer output is blank when a value is unavailable', () => {
   assert.equal(evaluate('formatInts(NaN, NaN)'), '');
   assert.equal(evaluate('formatInts(67.4, NaN)'), '');
-  assert.equal(evaluate('formatInts(67.4, 75.6)'), '67,76');
+  assert.equal(evaluate('formatInts(67.4, 75.6)'), '67, 76');
 });
 
 test('blank numeric input becomes NaN unless a default is provided', () => {
@@ -70,16 +70,25 @@ test('blank numeric input becomes NaN unless a default is provided', () => {
   assert.equal(evaluate("parseValue({ innerText: '-200' })"), -200);
 });
 
+test('native form values are read and written without changing saved-state text', () => {
+  assert.equal(evaluate("parseValue({ value: ' 12.5 ', innerText: 'wrong' })"), 12.5);
+  assert.equal(evaluate(`(() => {
+    const input = { value: '' };
+    setValue(input, -20);
+    return input.value;
+  })()`), '-20');
+});
+
 test('OAT input accepts the AFM minimum of -20 C without truncation', () => {
   const oatClasses = html.match(/class="([^"]*\boat\b[^"]*)"/)?.[1].split(/\s+/) ?? [];
   assert.ok(oatClasses.includes('max3'));
-  assert.equal(evaluate("normalizeEditableText('-20', 3)"), '-20');
-  assert.equal(evaluate("normalizeEditableText('-200', 3)"), '-20');
-  assert.equal(evaluate("normalizeEditableText('12\\n3', 3)"), '123');
+  assert.equal(evaluate("normalizeInputText('-20', 3)"), '-20');
+  assert.equal(evaluate("normalizeInputText('-200', 3)"), '-20');
+  assert.equal(evaluate("normalizeInputText('12\\n3', 3)"), '123');
   assert.equal(evaluate(`(() => {
-    const target = { classList: ['oat', 'max3'], innerText: '' };
+    const target = { classList: ['oat', 'max3'], value: '' };
     restoreText({ querySelector: () => target }, ['oat'], { oat: '-200' });
-    return target.innerText;
+    return target.value;
   })()`), '-20');
 });
 

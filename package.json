@@ -4,13 +4,16 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "check": "tsc --noEmit",
     "build:static": "node scripts/copy-static.mjs",
     "build:scripts": "tsc",
     "build:service-worker": "node scripts/build-service-worker.mjs",
-    "test": "npm run clean && npm run build:scripts && node tests/chart-trace.test.mjs && node tests/chart-calculator.test.mjs && node tests/da40.test.mjs",
+    "test": "npm run build",
     "verify": "node scripts/verify-build.mjs && node tests/pwa.test.mjs && node tests/chart-trace.test.mjs && node tests/chart-calculator.test.mjs && node tests/da40.test.mjs",
     "build": "npm run clean && npm run build:static && npm run build:scripts && npm run build:service-worker && npm run verify",
     "prestart": "npm run build",

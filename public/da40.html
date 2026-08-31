@@ -34,56 +34,69 @@ table.main {
   width: 100%;
   border: 2px solid black;
   font-family: "B612", sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: normal;
   border-collapse: collapse;
 }
 object.chart {
   width: 600px;
+  max-width: 100%;
 }
-div.title {
-  margin-bottom: 3em;
+.title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 800px;
+  margin: 12px auto 24px;
+  gap: 16px;
 }
-div.container{
+.container {
   margin: auto;
 }
 table.main td {
-  padding: 2px 5px 2px 5px;
+  padding: 2px 5px;
   text-align: center;
   border: 1px solid;
 }
 
-div.row {
+.row {
   text-align: center;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  max-width: 800px;
+  margin-inline: auto;
+  gap: 8px;
+  align-items: start;
 }
 
 h1 {
   font-family: "B612", sans-serif;
-  font-size: 20px;
   margin: 0;
-  margin-bottom: 5px;
+  font-size: clamp(22px, 4vw, 24px);
+  line-height: 1.2;
 }
 
-div.col3 {
-  width: 33%;
-  vertical-align: top;
-  display: inline-block;
-  margin: 0;
-}
-.summary-grid > .col3 {
-  width: auto;
+.summary-grid > .summary-panel {
+  min-width: 0;
 }
 .checkbox-options {
   text-align: left;
 }
 
-table.main tr.header td, table.main td.header {
+table.main tr.header td,
+table.main td.header {
   border: 1px solid black;
   color: white;
   background-color: #666;
 }
 
-table.main tr.header0 td, table.main td.header0 {
+table.main tr.header0 td,
+table.main td.header0 {
   border: 1px solid black;
   color: white;
   background-color: black;
@@ -93,14 +106,18 @@ table.main td input {
   font-family: "B612", sans-serif;
   min-width: 1rem;
 }
-
-table.main td.left {
-  border-left: 2px solid black;
+table.main input[type="text"] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: center;
 }
-table.main td.right {
-  border-right: 2px solid black;
-}
-table.main td div.update {
+table.main input[type="text"].update {
   background: repeating-linear-gradient(
     45deg,
     rgba(0, 0, 0, 0.05),
@@ -109,11 +126,16 @@ table.main td div.update {
     rgba(0, 0, 0, 0.1) 4px
       );
 }
+table.main input[type="text"]:focus-visible,
+table.main input[type="checkbox"]:focus-visible {
+  outline: 2px solid #005fcc;
+  outline-offset: 1px;
+}
+label {
+  cursor: pointer;
+}
 .gray {
   background-color: #ccc;
-}
-.buttons button {
-  display: inline-block;
 }
 button {
   font-family: "B612", sans-serif;
@@ -123,12 +145,92 @@ button {
   border: 2px solid;
   height: 30px;
   width: 100px;
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 2px solid #005fcc;
+  outline-offset: 2px;
+}
+.tools-toggle {
+  flex: 0 0 auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  touch-action: manipulation;
+}
+.tools-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  box-sizing: border-box;
+  width: min(480px, calc(100vw - 12px));
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  margin: 0 0 0 auto;
+  padding: 0 12px max(12px, env(safe-area-inset-bottom));
+  border: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: #000;
+  background: #fff;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.3);
+}
+.tools-drawer[open] {
+  display: block;
+  animation: tools-drawer-in 160ms ease-out;
+}
+.tools-drawer::backdrop {
+  background: rgba(0, 0, 0, 0.38);
+}
+.tools-drawer-header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -12px 10px;
+  padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+  color: #fff;
+  background: #000;
+}
+.tools-drawer-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.tools-close {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-color: #fff;
+  color: #fff;
+  background: #000;
+  touch-action: manipulation;
+}
+#tools {
+  margin-bottom: 0;
+  table-layout: fixed;
+}
+#tools col:nth-child(odd) {
+  width: 22%;
+}
+#tools col:nth-child(even) {
+  width: 28%;
+}
+@keyframes tools-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 .buttons {
   margin-top: 10px;
   text-align: center;
 }
-.copyright, #url {
+.copyright,
+#url {
   margin-top: 20px;
   font-size: 12px;
   font-family: "B612", sans-serif;
@@ -145,11 +247,13 @@ button {
   text-align: left;
 }
 #url > textarea {
+  box-sizing: border-box;
   font-family: "B612", sans-serif;
   font-size: 12px;
   display: block;
   height: 100px;
   width: 100%;
+  resize: vertical;
 }
 .pwa-status {
   position: fixed;
@@ -173,15 +277,25 @@ button {
 td.mass-wrapper, td.cg-wrapper {
   background-color: #cc241d;
 }
-#weights td:first-child {
-  min-width: 90px;
-  white-space: nowrap;
+#weights {
+  table-layout: fixed;
 }
-#weights td:nth-child(2) {
-  min-width: 8ch;
+#weights col:first-child {
+  width: 42%;
 }
+#weights col:nth-child(2) {
+  width: 28%;
+}
+#weights col:last-child {
+  width: 30%;
+}
+#weights td:first-child,
+#weights td:nth-child(2),
 #weights td:nth-child(3) {
-  min-width: 9ch;
+  min-width: 0;
+}
+#weights td:first-child {
+  white-space: normal;
 }
 .env-label {
   width: 130px;
@@ -189,29 +303,31 @@ td.mass-wrapper, td.cg-wrapper {
 .env-value {
   width: 40px;
 }
+#outputs {
+  table-layout: fixed;
+}
+#outputs col:first-child {
+  width: 60%;
+}
+#outputs col:last-child {
+  width: 40%;
+}
 #outputs td:first-child {
-  min-width: 150px;
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
 }
 .outputs-value {
-  width: 60px;
-}
-#tools td:nth-child(2),
-#tools td:nth-child(4) {
-  min-width: 50px;
-  width: 50px;
+  width: auto;
 }
 table.main tr td:first-child {
   text-align: right;
 }
+table.main tr.header td,
 table.main tr.header0 td {
   text-align: center;
 }
 input[type="checkbox"] {
   margin: 2px;
-}
-.e6b {
-  width: 0px;
 }
 .wind {
   min-width: 50px;
@@ -219,11 +335,9 @@ input[type="checkbox"] {
 }
 .wind .dir {
   flex: 1.5;
-  display: inline-block;
 }
 .wind .vel {
   flex: 1;
-  display: inline-block;
 }
 .holding {
   min-width: 50px;
@@ -231,18 +345,14 @@ input[type="checkbox"] {
 }
 .holding .h-out {
   flex: 1;
-  display: inline-block;
 }
 .holding .h-in {
   flex: 1;
-  display: inline-block;
 }
-.tas {
-  min-width: 25px;
-}
-.d-slope {
+table.main input[type="text"].d-slope {
   display: inline-block;
   width: 20px;
+  min-width: 20px;
 }
 #tools td.ep-mixture {
   white-space: nowrap;
@@ -253,18 +363,25 @@ input[type="checkbox"] {
   text-align: center;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 800px) {
   table.main {
-    font-size: 18px;
+    font-size: 16px;
   }
-  div.col3 {
+}
+
+@media (max-width: 600px) {
+  .summary-grid {
     display: block;
   }
-  object.chart {
-    width: 100%;
+  #tools td.ep-mixture,
+  #tools td.ep-result {
+    white-space: normal;
   }
-  #weights td:first-child {
-    min-width: 130px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tools-drawer[open] {
+    animation: none;
   }
 }
 
@@ -297,6 +414,7 @@ input[type="checkbox"] {
 
   .title {
     margin: 0 0 2mm;
+    justify-content: center;
   }
 
   h1 {
@@ -307,6 +425,8 @@ input[type="checkbox"] {
   .summary-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 1.28fr);
+    width: 100%;
+    max-width: none;
     gap: 2mm;
     align-items: start;
     text-align: initial;
@@ -314,9 +434,8 @@ input[type="checkbox"] {
     page-break-inside: avoid;
   }
 
-  .summary-grid > .col3 {
+  .summary-grid > .summary-panel {
     display: block;
-    width: auto;
     min-width: 0;
   }
 
@@ -341,7 +460,7 @@ input[type="checkbox"] {
     border-width: 0.2mm;
   }
 
-  table.main td div.update {
+  table.main input[type="text"].update {
     min-height: 0.9em;
     background: #f2f2f2 !important;
   }
@@ -357,17 +476,13 @@ input[type="checkbox"] {
   #weights td:first-child,
   #weights td:nth-child(2),
   #weights td:nth-child(3),
-  #outputs td:first-child,
-  #tools td:nth-child(2),
-  #tools td:nth-child(4) {
+  #outputs td:first-child {
     min-width: 0;
   }
 
   .env-label,
   .env-value,
-  .outputs-value,
-  #tools td:nth-child(2),
-  #tools td:nth-child(4) {
+  .outputs-value {
     width: auto;
   }
 
@@ -382,8 +497,32 @@ input[type="checkbox"] {
 
   .buttons,
   #url,
-  .pwa-status {
+  .pwa-status,
+  .tools-toggle,
+  .tools-close {
     display: none !important;
+  }
+
+  .tools-drawer {
+    display: block !important;
+    position: static;
+    width: auto;
+    height: auto;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  .tools-drawer-header {
+    position: static;
+    margin: 0;
+    padding: 0.7mm;
+  }
+
+  .tools-drawer-header h2 {
+    font-size: 7.5pt;
   }
 
   .charts {
@@ -424,68 +563,74 @@ input[type="checkbox"] {
     <div class="container">
       <div class="row title">
         <h1>DA40 Computer</h1>
+        <button id="tools-toggle" class="tools-toggle" type="button" aria-haspopup="dialog" aria-controls="tools-drawer" aria-expanded="false">Tools</button>
       </div>
       <div class="row summary-grid">
-        <div class="col3">
+        <div class="summary-panel">
           <table class="main" id="weights">
+            <colgroup>
+              <col>
+              <col>
+              <col>
+            </colgroup>
             <tr class="header0">
               <td colspan="3">Weights</td>
             </tr>
             <tr class="header">
               <td class="checkbox-options" colspan="2">
-                <input type="checkbox" class="update" name="mam-40-227" checked><span>MÄM 40-227</span><br>
-                <input type="checkbox" class="update" name="longrange-tank"><span>Long-range Tank</span>
+                <label><input type="checkbox" class="update" name="mam-40-227" checked><span>MÄM 40-227</span></label><br>
+                <label><input type="checkbox" class="update" name="longrange-tank"><span>Long-range Tank</span></label>
               </td>
               <td>Moment</td>
             </tr>
             <tr>
               <td>Empty Weight</td>
-              <td><div class="empty-mass update max8"></div></td>
-              <td><div class="empty-moment update max8"></div></td>
+              <td><input type="text" class="empty-mass update max8" maxlength="8" inputmode="decimal" autocomplete="off" aria-label="Empty weight in pounds"></td>
+              <td><input type="text" class="empty-moment update max8" maxlength="8" inputmode="decimal" autocomplete="off" aria-label="Empty-weight moment"></td>
             </tr>
             <tr>
               <td>Front Seat L</td>
-              <td><div class="front-left-mass update max3"></div></td>
+              <td><input type="text" class="front-left-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Front-left seat weight in pounds"></td>
               <td><span class="front-left-moment"></span></td>
             </tr>
             <tr>
               <td>Front Seat R</td>
-              <td><div class="front-right-mass update max3"></div></td>
+              <td><input type="text" class="front-right-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Front-right seat weight in pounds"></td>
               <td><span class="front-right-moment"></span></td>
             </tr>
             <tr>
               <td>Rear Seat L</td>
-              <td><div class="rear-left-mass update max3"></div></td>
+              <td><input type="text" class="rear-left-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear-left seat weight in pounds"></td>
               <td><span class="rear-left-moment"></span></td>
             </tr>
             <tr>
               <td>Rear Seat R</td>
-              <td><div class="rear-right-mass update max3"></div></td>
+              <td><input type="text" class="rear-right-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear-right seat weight in pounds"></td>
               <td><span class="rear-right-moment"></span></td>
             </tr>
             <tr>
               <td>Std. Baggage</td>
-              <td><div class="baggage-std-mass update max3"></div></td>
+              <td><input type="text" class="baggage-std-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Standard baggage weight in pounds"></td>
               <td><span class="baggage-std-moment"></span></td>
             </tr>
             <tr>
               <td>Baggage Tube</td>
-              <td><div class="baggage-tube-mass update max3"></div></td>
+              <td><input type="text" class="baggage-tube-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Baggage-tube weight in pounds"></td>
               <td><span class="baggage-tube-moment"></span></td>
             </tr>
             <tr>
               <td>Ext. Forward</td>
-              <td><div class="baggage-ext-forward-mass update max3"></div></td>
+              <td><input type="text" class="baggage-ext-forward-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Extended forward baggage weight in pounds"></td>
               <td><span class="baggage-ext-forward-moment"></span></td>
             </tr>
             <tr>
               <td>Ext. Aft</td>
-              <td><div class="baggage-ext-aft-mass update max3"></div></td>
+              <td><input type="text" class="baggage-ext-aft-mass update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Extended aft baggage weight in pounds"></td>
               <td><span class="baggage-ext-aft-moment"></span></td>
             </tr>
             <tr>
               <td>Fuel (gal)</td>
-              <td><div class="fuel-vol update max2"></div></td>
+              <td><input type="text" class="fuel-vol update max2" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Fuel volume in gallons"></td>
               <td><span class="fuel-moment"></span></td>
             </tr>
             <tr>
@@ -503,30 +648,30 @@ input[type="checkbox"] {
             </tr>
             <tr>
               <td class="env-label">OAT (°C)</td>
-              <td class="env-value"><div class="oat update max3">15</div></td>
+              <td class="env-value"><input type="text" class="oat update max3" value="15" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Outside air temperature in degrees Celsius"></td>
             </tr>
             <tr>
               <td>QNH (inhg)</td>
-              <td><div class="qnh update max6">29.92</div></td>
+              <td><input type="text" class="qnh update max6" value="29.92" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="QNH in inches of mercury"></td>
             </tr>
             <tr>
               <td>Headwind (kts)</td>
-              <td><div class="headwind update max3">0</div></td>
+              <td><input type="text" class="headwind update max3" value="0" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Headwind in knots"></td>
             </tr>
             <tr>
               <td>Elevation (ft)</td>
-              <td><div class="field-alt update max6">0</div></td>
+              <td><input type="text" class="field-alt update max6" value="0" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Field elevation in feet"></td>
             </tr>
             <tr>
               <td>Obstacle (ft)</td>
-              <td><div class="obst update max2">50</div></td>
+              <td><input type="text" class="obst update max2" value="50" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Obstacle height in feet"></td>
             </tr>
             <tr class="header">
               <td colspan="2"></td>
             </tr>
             <tr>
               <td>Pressure Alt. (ft)</td>
-              <td><div class="press-alt update max6"></div></td>
+              <td><input type="text" class="press-alt update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Pressure altitude in feet"></td>
             </tr>
             <tr>
               <td>Density Alt. (ft)</td>
@@ -534,8 +679,12 @@ input[type="checkbox"] {
             </tr>
           </table>
         </div>
-        <div class="col3">
+        <div class="summary-panel">
           <table class="main" id="outputs">
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
             <tr class="header0">
               <td colspan="2">Aircraft Data</td>
             </tr>
@@ -586,36 +735,43 @@ input[type="checkbox"] {
             </tr>
           </table>
         </div>
-        <div class="col3">
+        <dialog id="tools-drawer" class="summary-panel tools-drawer" aria-labelledby="tools-drawer-title">
+          <div class="tools-drawer-header">
+            <h2 id="tools-drawer-title">General Tools</h2>
+            <button id="tools-close" class="tools-close" type="button" aria-label="Close General Tools">×</button>
+          </div>
           <table class="main" id="tools">
-            <tr class="header0">
-              <td colspan="4">General Tools</td>
-            </tr>
+            <colgroup>
+              <col>
+              <col>
+              <col>
+              <col>
+            </colgroup>
             <tr class="header">
               <td colspan="4">Engine Performance</td>
             </tr>
             <tr>
               <td>ISA (ft)</td>
-              <td><div class="ep-alt update max6">0</div></td>
+              <td><input type="text" class="ep-alt update max6" value="0" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Engine-performance pressure altitude in feet"></td>
               <td>RPM</td>
-              <td><div class="ep-rpm update max4">2400</div></td>
+              <td><input type="text" class="ep-rpm update max4" value="2400" maxlength="4" inputmode="numeric" autocomplete="off" aria-label="Engine RPM"></td>
             </tr>
             <tr>
               <td>inHg</td>
-              <td><div class="ep-mp update max6">24</div></td>
+              <td><input type="text" class="ep-mp update max6" value="24" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Manifold pressure in inches of mercury"></td>
               <td class="ep-result" colspan="2"><span class="ep-output"></span></td>
             </tr>
             <tr>
-              <td class="ep-mixture" colspan="4"><input type="checkbox" class="ep-best-power update"><span>Best Power mixture (off = Best Economy)</span></td>
+              <td class="ep-mixture" colspan="4"><label><input type="checkbox" class="ep-best-power update"><span>Best Power mixture (off = Best Economy)</span></label></td>
             </tr>
             <tr class="header">
               <td colspan="4">Wind Components</td>
             </tr>
             <tr>
               <td>Wind</td>
-              <td><div class="wind"><div class="dir wc-dir update max3"></div>@<div class="vel wc-vel update max2"></div></div></td>
+              <td><div class="wind"><input type="text" class="dir wc-dir update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Wind direction in degrees">@<input type="text" class="vel wc-vel update max2" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Wind speed in knots"></div></td>
               <td>Rwy</td>
-              <td><div class="wc-rwy update max2"></div></td>
+              <td><input type="text" class="wc-rwy update max2" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Runway number"></td>
             </tr>
             <tr>
               <td>Xwind.</td>
@@ -628,27 +784,27 @@ input[type="checkbox"] {
             </tr>
             <tr>
               <td>GS</td>
-              <td><div class="fpm-gs update max3"></div></td>
+              <td><input type="text" class="fpm-gs update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for climb-gradient conversion"></td>
               <td>FPM</td>
-              <td><div class="fpm-rate update max4"></div></td>
+              <td><input type="text" class="fpm-rate update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Vertical speed in feet per minute"></td>
             </tr>
             <tr>
               <td>ft/NM</td>
-              <td><div class="fpm-gradient update max6"></div></td>
+              <td><input type="text" class="fpm-gradient update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Climb gradient in feet per nautical mile"></td>
               <td colspan="2"></td>
             </tr>
             <tr class="header">
-              <td colspan="4">Descent (slope =<div class="d-slope update max2">3</div>°)</td>
+              <td colspan="4">Descent (slope =<input type="text" class="d-slope update max2" value="3" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Descent slope in degrees">°)</td>
             </tr>
             <tr>
               <td>GS</td>
-              <td><div class="d-gs update max3"></div></td>
+              <td><input type="text" class="d-gs update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for descent calculation"></td>
               <td>↓Rate</td>
               <td><span class="d-rate"></span></td>
             </tr>
             <tr>
               <td>ΔH</td>
-              <td><div class="d-alt update max6"></div></td>
+              <td><input type="text" class="d-alt update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Descent height in feet"></td>
               <td>Dist.</td>
               <td><span class="d-dist"></span></td>
             </tr>
@@ -657,12 +813,12 @@ input[type="checkbox"] {
             </tr>
             <tr>
               <td>Out/In</td>
-              <td><div class="holding"><div class="h-out update max3"></div>/<div class="h-in update max3"></div></div></td>
+              <td><div class="holding"><input type="text" class="h-out update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding outbound course in degrees">/<input type="text" class="h-in update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding inbound course in degrees"></div></td>
               <td>Hdg</td>
-              <td><div class="h-hdg update max3"></div></td>
+              <td><input type="text" class="h-hdg update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Aircraft heading in degrees for holding entry"></td>
             </tr>
             <tr>
-              <td colspan="2"><input type="checkbox" class="h-left update"><span>Left</span></td>
+              <td colspan="2"><label><input type="checkbox" class="h-left update"><span>Left turns</span></label></td>
               <td>Type</td>
               <td><span class="h-type"></span></td>
             </tr>
@@ -671,15 +827,15 @@ input[type="checkbox"] {
             </tr>
             <tr>
               <td class="e6b">Course</td>
-              <td><div class="tc update max3"></div></td>
+              <td><input type="text" class="tc update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="True course in degrees"></td>
               <td class="e6b">TAS</td>
-              <td><div class="tas update max3"></div></td>
+              <td><input type="text" class="tas update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="True airspeed in knots"></td>
             </tr>
             <tr>
               <td>Wind</td>
-              <td><div class="wind"><div class="dir windir update max3"></div>@<div class="vel winvel update max2"></div></div></td>
+              <td><div class="wind"><input type="text" class="dir windir update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="E6B wind direction in degrees">@<input type="text" class="vel winvel update max2" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="E6B wind speed in knots"></div></td>
               <td>E−/W+</td>
-              <td><div class="vr update max3"></div></td>
+              <td><input type="text" class="vr update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Magnetic variation correction; east negative and west positive"></td>
             </tr>
             <tr>
               <td>Hdg</td>
@@ -692,7 +848,7 @@ input[type="checkbox"] {
             </tr>
             <tr>
               <td>TAS</td>
-              <td><div class="t-tas update max3"></div></td>
+              <td><input type="text" class="t-tas update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="True airspeed in knots for standard-rate turn"></td>
               <td>Bank</td>
               <td><span class="t-bank"></span></td>
             </tr>
@@ -701,30 +857,30 @@ input[type="checkbox"] {
             </tr>
             <tr>
               <td>°C</td>
-              <td><div class="c-cel update max4"></div></td>
+              <td><input type="text" class="c-cel update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Celsius"></td>
               <td>°F</td>
-              <td><div class="c-fah update max4"></div></td>
+              <td><input type="text" class="c-fah update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Fahrenheit"></td>
             </tr>
             <tr>
               <td>NM/kts</td>
-              <td><div class="c-nm update max4"></div></td>
+              <td><input type="text" class="c-nm update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in nautical miles or speed in knots"></td>
               <td>SM/mph</td>
-              <td><div class="c-sm update max4"></div></td>
+              <td><input type="text" class="c-sm update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in statute miles or speed in miles per hour"></td>
             </tr>
             <tr>
               <td>feet</td>
-              <td><div class="c-ft update max6"></div></td>
+              <td><input type="text" class="c-ft update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in feet"></td>
               <td>m</td>
-              <td><div class="c-m update max6"></div></td>
+              <td><input type="text" class="c-m update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in metres"></td>
             </tr>
             <tr>
               <td>lb</td>
-              <td><div class="c-lb update max4"></div></td>
+              <td><input type="text" class="c-lb update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in pounds"></td>
               <td>kg</td>
-              <td><div class="c-kg update max4"></div></td>
+              <td><input type="text" class="c-kg update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in kilograms"></td>
             </tr>
           </table>
-        </div>
+        </dialog>
       </div>
       <div class="buttons">
         <button id="save" type="button">Save</button>

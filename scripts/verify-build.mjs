@@ -6,6 +6,8 @@ import { collectRelativeFiles } from "./file-tree.mjs";
 const outputDirectory = new URL("../dist/", import.meta.url);
 const serviceWorker = await readFile(new URL("sw.js", outputDirectory), "utf8");
 const html = await readFile(new URL("da40.html", outputDirectory), "utf8");
+const appSource = await readFile(new URL("assets/js/da40.js", outputDirectory), "utf8");
+const pwaSource = await readFile(new URL("assets/js/pwa.js", outputDirectory), "utf8");
 const manifest = JSON.parse(
   await readFile(new URL("manifest.webmanifest", outputDirectory), "utf8"),
 );
@@ -103,6 +105,77 @@ for (const reference of resourceReferences) {
     .replace(outputDirectory.pathname, "");
   assert.ok(outputFiles.includes(relativePath), `Referenced app file is missing: ${reference}`);
   assert.ok(cachedFiles.includes(relativePath), `Referenced app file is not precached: ${reference}`);
+}
+
+assert.doesNotMatch(html, /\bcontenteditable\b/, "Use native form controls for editable values.");
+assert.doesNotMatch(
+  html,
+  /<div\b[^>]*class="[^"]*\bupdate\b[^"]*"/,
+  "Editable values must not be generic div elements.",
+);
+const textInputs = [...html.matchAll(/<input\b[^>]*\btype="text"[^>]*>/g)]
+  .map(match => match[0]);
+assert.ok(textInputs.length > 0, "The calculator must expose editable form controls.");
+for (const input of textInputs) {
+  for (const attribute of ["aria-label", "autocomplete", "inputmode", "maxlength"]) {
+    assert.match(input, new RegExp(`\\b${attribute}="[^"]+"`), `Text input lacks ${attribute}: ${input}`);
+  }
+}
+const checkboxes = [...html.matchAll(/<input\b[^>]*\btype="checkbox"[^>]*>/g)];
+const labeledCheckboxes = [...html.matchAll(
+  /<label>\s*<input\b[^>]*\btype="checkbox"[^>]*>[\s\S]*?<\/label>/g,
+)];
+assert.equal(
+  labeledCheckboxes.length,
+  checkboxes.length,
+  "Every checkbox must have a clickable label.",
+);
+
+const htmlClasses = new Set(
+  [...html.matchAll(/\bclass="([^"]*)"/g)]
+    .flatMap(match => match[1].split(/\s+/))
+    .filter(Boolean),
+);
+const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
+const selectorSource = `${appSource}\n${pwaSource}`;
+const literalSelectors = [...selectorSource.matchAll(
+  /(?:querySelector(?:All)?|getElementById)\((['"])(.*?)\1\)/g,
+)].map(match => match[2]);
+for (const selector of literalSelectors) {
+  for (const match of selector.matchAll(/\.([A-Za-z_][\w-]*)/g)) {
+    assert.ok(htmlClasses.has(match[1]), `Script references missing HTML class: ${match[1]}`);
+  }
+  for (const match of selector.matchAll(/#([A-Za-z_][\w-]*)/g)) {
+    assert.ok(htmlIds.has(match[1]), `Script references missing HTML id: ${match[1]}`);
+  }
+  if (/^[A-Za-z_][\w-]*$/.test(selector)) {
+    assert.ok(htmlIds.has(selector), `Script references missing HTML id: ${selector}`);
+  }
+}
+
+const bundledLicenseNames = [
+  "babel-runtime-corejs2-LICENSE.txt",
+  "base64-js-LICENSE.txt",
+  "bl-LICENSE.md",
+  "bluebird-LICENSE.txt",
+  "buffer-LICENSE.txt",
+  "core-js-LICENSE.txt",
+  "ieee754-LICENSE.txt",
+  "inherits-LICENSE.txt",
+  "json-url-LICENSE.txt",
+  "lzma-LICENSE.txt",
+  "msgpack5-LICENSE.txt",
+  "readable-stream-LICENSE.txt",
+  "safe-buffer-LICENSE.txt",
+  "string-decoder-LICENSE.txt",
+  "urlsafe-base64-LICENSE.txt",
+  "util-deprecate-LICENSE.txt",
+];
+for (const licenseName of bundledLicenseNames) {
+  const relativePath = `assets/vendor/json-url/licenses/${licenseName}`;
+  const license = await readFile(new URL(relativePath, outputDirectory), "utf8");
+  assert.ok(license.length > 100, `Bundled license is unexpectedly empty: ${relativePath}`);
+  assert.ok(cachedFiles.includes(relativePath), `Bundled license is not precached: ${relativePath}`);
 }
 
 const codecBundleNames = [
