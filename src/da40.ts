@@ -37,12 +37,6 @@ type ChartCalculator = (
     obst?: number,
 ) => number;
 
-type WindTriangle = {
-    windCorrectionAngle: number;
-    trueHeading: number;
-    groundSpeed: number;
-};
-
 type FuelMixture = 'bestEconomy' | 'bestPower';
 
 type EnginePerformanceColumn = {
@@ -58,10 +52,11 @@ type RecommendationPoint = {
     recommended: boolean;
 };
 
-type InterpolationPoint = readonly [number, number];
-
-const interpolateLinear = (start: number, end: number, ratio: number) =>
-    start + (end - start) * ratio;
+type InterpolationPoint = PerformanceCommon.InterpolationPoint;
+const interpolateLinear = PerformanceCommon.interpolateLinear;
+const interpolatePoints = PerformanceCommon.interpolatePoints;
+const feetPerNauticalMile = PerformanceCommon.feetPerNauticalMile;
+const calibratedToTrueAirspeed = PerformanceCommon.calibratedToTrueAirspeed;
 
 const selectCurveBracket = (
     curveMarks: readonly number[],
@@ -175,25 +170,47 @@ class Coordinate {
         this.getPointAtCanvasX(path, this.getCanvasX(x));
 }
 
+type ChartRoot = Document | ShadowRoot;
+
+const findChartElement = (root: ChartRoot, id: string) =>
+    root.querySelector(`#${id}`);
+
+const createInlineChartRoot = (host: HTMLElement): ShadowRoot | null => {
+    if (host.shadowRoot) {
+        return host.shadowRoot;
+    }
+    const template = host.querySelector<HTMLTemplateElement>(':scope > template');
+    if (!template || typeof host.attachShadow !== 'function') {
+        return null;
+    }
+    const shadowRoot = host.attachShadow({ mode: 'open' });
+    shadowRoot.appendChild(template.content.cloneNode(true));
+    template.remove();
+    return shadowRoot;
+};
+
 const createChartCalculator = (chart: ChartDefinition): ChartCalculator => {
-    const chartObject = document.getElementById(chart.doc) as HTMLObjectElement | null;
-    const svgDoc = chartObject && chartObject.contentDocument;
-    const svg = svgDoc && svgDoc.getElementById(chart.svg);
-    const canvas = svgDoc && svgDoc.getElementById(chart.canvas);
+    const chartHost = document.getElementById(chart.doc) as HTMLElement | null;
+    const svgDoc = chartHost && 'contentDocument' in chartHost
+        ? (chartHost as HTMLObjectElement).contentDocument
+        : null;
+    const chartRoot = svgDoc ?? (chartHost ? createInlineChartRoot(chartHost) : null);
+    const svg = chartRoot && findChartElement(chartRoot, chart.svg);
+    const canvas = chartRoot && findChartElement(chartRoot, chart.canvas);
     const tracePaths: SVGPathElement[] = [];
     let traceY: number | null = null;
     let traceRightX: number | null = null;
 
-    if (!svgDoc || !svg || !canvas) {
+    if (!chartRoot || !svg || !canvas) {
         console.warn(`Chart unavailable: ${chart.doc}`);
         return () => NaN;
     }
 
     const prepareStep = (step: ChartStep): StepCalculator | null => {
-        const xAxis = svgDoc.getElementById(step.x) as SVGGeometryElement | null;
-        const yAxis = svgDoc.getElementById(step.y) as SVGGeometryElement | null;
+        const xAxis = findChartElement(chartRoot, step.x) as SVGGeometryElement | null;
+        const yAxis = findChartElement(chartRoot, step.y) as SVGGeometryElement | null;
         const curves = step.curves.map(id =>
-            svgDoc.getElementById(id) as SVGGeometryElement | null);
+            findChartElement(chartRoot, id) as SVGGeometryElement | null);
         if (!isGeometryPath(xAxis) || !isGeometryPath(yAxis) ||
             !curves.every(isGeometryPath)) {
             console.warn(`Chart step unavailable: ${chart.doc}`);
@@ -378,30 +395,8 @@ const formatFloat = (v: unknown, prec?: number) => isFiniteNumber(v) ? v.toFixed
 const formatInt = (v: unknown) => isFiniteNumber(v) ? v.toFixed(0) : '';
 const formatInts = (...values: unknown[]) =>
     values.every(isFiniteNumber) ? values.map(formatInt).join(', ') : '';
-const rectifyDir = (v: number) => (v % 360 + 360) % 360;
-const formatDir = (v: unknown) => {
-    if (!isFiniteNumber(v)) {
-        return '';
-    }
-    const rounded = Math.round(rectifyDir(v)) % 360;
-    return padZero(rounded || 360, 3);
-};
-const feetPerNauticalMile = (fpm: number, knots: number) =>
-    Number.isFinite(fpm) && Number.isFinite(knots) && knots > 0 ? fpm * 60 / knots : NaN;
-
-const withinDirRange = (d: number, from: number, to: number) => {
-    from = rectifyDir(from);
-    to = rectifyDir(to);
-    d = rectifyDir(d);
-    if (to < from) {
-        to += 360;
-    }
-    if (d < from) {
-        d += 360;
-    }
-    return d <= to;
-};
-
+const formatSlashInts = (...values: unknown[]) =>
+    values.every(isFiniteNumber) ? values.map(formatInt).join(' / ') : '';
 const parseQNH = (e: Element | null) => {
     const x = parseValue(e);
     return (20 <= x && x <= 40) ? x : NaN;
@@ -421,57 +416,6 @@ const parsePositiveValue = (e: Element | null, d?: number): number => {
     return x >= 0 ? x : NaN;
 };
 
-const parseDirection = (e: Element | null, d?: number): number => {
-    const x = parseValue(e, d);
-    return 0 <= x && x <= 360 ? x : NaN;
-};
-
-const parseRunway = (e: Element | null, d?: number): number => {
-    const x = parseValue(e, d);
-    return Number.isInteger(x) && 1 <= x && x <= 36 ? x : NaN;
-};
-
-const rad2deg = (r: number) => r / Math.PI * 180;
-const deg2rad = (d: number) => d / 180 * Math.PI;
-
-const calculateWindTriangle = (
-    trueCourse: number,
-    trueAirspeed: number,
-    windDirection: number,
-    windSpeed: number,
-): WindTriangle | null => {
-    if (![trueCourse, trueAirspeed, windDirection, windSpeed].every(Number.isFinite) ||
-        trueAirspeed <= 0 || windSpeed < 0) {
-        return null;
-    }
-    const windAngle = deg2rad(windDirection - trueCourse);
-    const crosswind = Math.sin(windAngle) * windSpeed;
-    const correctionRatio = crosswind / trueAirspeed;
-    if (Math.abs(correctionRatio) > 1) {
-        return null;
-    }
-    const correctionRadians = Math.asin(correctionRatio);
-    const groundSpeed = trueAirspeed * Math.cos(correctionRadians) -
-        Math.cos(windAngle) * windSpeed;
-    if (!(groundSpeed > 0)) {
-        return null;
-    }
-    const windCorrectionAngle = rad2deg(correctionRadians);
-    return {
-        windCorrectionAngle,
-        trueHeading: trueCourse + windCorrectionAngle,
-        groundSpeed,
-    };
-};
-
-// True to magnetic: east is least (negative), west is best (positive).
-const magneticHeadingFromTrue = (trueHeading: number, variationCorrection: number) =>
-    trueHeading + variationCorrection;
-
-const padZero = (num: number, size: number) => {
-    return String(num).padStart(size, '0');
-};
-
 const arms = [
     90.6, // front left
     90.6, // front right
@@ -483,9 +427,6 @@ const arms = [
     178.7, // ext baggage (aft)
 ];
 
-const nauticalInFeet = 6076.12;
-const descentDistance = (altitudeFeet: number, slopeDegrees: number) =>
-    altitudeFeet / (nauticalInFeet * Math.tan(deg2rad(slopeDegrees)));
 const fuelDensity = 6.01; // lb/gal
 const fuelArm = 103.5;
 const maxFuelVolumeStd = 40;
@@ -500,15 +441,6 @@ const maxBaggageTubeWeight = 11;
 const maxExtendedForwardBaggageWeight = 100;
 const maxExtendedAftBaggageWeight = 40;
 const maxCombinedExtendedBaggageWeight = 100;
-
-const seaLevelStandardTemperatureK = 288.15;
-const seaLevelStandardPressurePa = 101325;
-const standardTemperatureLapseRate = 0.0065;
-const feetToMeters = 0.3048;
-const knotsToMetersPerSecond = 0.5144444444444445;
-const standardPressureExponent = 5.2558797;
-const ratioOfSpecificHeats = 1.4;
-const specificGasConstantAir = 287.05287;
 
 // DA 40 AFM Rev. 10, section 5.3.2, pages 5-6 and 5-7. Each manifold-
 // pressure array is indexed by pressure altitude from MSL through 17,000 ft.
@@ -832,7 +764,8 @@ const takeoffClimbChart: ChartDefinition = {
         // lower bound rather than extrapolating the mass correction.
         conservativePassThrough: (mass) => mass > 0 && mass <= 2646,
     },
-    output: (y) => Math.ceil((1 - y) * (1600 - 0) + 0),
+    // A climb rate is available performance, so do not round it upward.
+    output: (y) => Math.floor((1 - y) * (1600 - 0) + 0),
 };
 
 const cruiseClimbChart: ChartDefinition = {
@@ -869,15 +802,14 @@ const cruiseClimbChart: ChartDefinition = {
         },
         conservativePassThrough: (mass) => mass > 0 && mass <= 2646,
     },
-    output: (y) => Math.ceil((1 - y) * (1600 - 0) + 0),
+    // A climb rate is available performance, so do not round it upward.
+    output: (y) => Math.floor((1 - y) * (1600 - 0) + 0),
 };
 
 let takeoffCalc: ChartCalculator | undefined;
 let landingCalc: ChartCalculator | undefined;
 let takeoffClimbCalc: ChartCalculator | undefined;
 let cruiseClimbCalc: ChartCalculator | undefined;
-let fpmSource: 'rate' | 'gradient' | undefined;
-
 const interpolateAirspeed = (speeds: readonly number[], mass: number): number => {
     if (!Number.isFinite(mass) || mass <= 0 || speeds.length !== weightSteps.length ||
         speeds.some(speed => !Number.isFinite(speed))) {
@@ -893,33 +825,6 @@ const interpolateAirspeed = (speeds: readonly number[], mass: number): number =>
             const ratio = (mass - startMass) / (endMass - startMass);
             const speed = interpolateLinear(speeds[i - 1], speeds[i], ratio);
             return Math.ceil(Math.max(speed, speeds[0]));
-        }
-    }
-    return NaN;
-};
-
-const interpolatePoints = (
-    points: readonly InterpolationPoint[],
-    input: number,
-): number => {
-    if (!Number.isFinite(input) ||
-        points.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
-        return NaN;
-    }
-    const sorted = [...points].sort(([x0], [x1]) => x0 - x1);
-    if (sorted.some(([x], index) => index > 0 && x === sorted[index - 1][0])) {
-        return NaN;
-    }
-    for (const [x, y] of sorted) {
-        if (Math.abs(input - x) < 1e-9) {
-            return y;
-        }
-    }
-    for (let i = 1; i < sorted.length; i++) {
-        const [x0, y0] = sorted[i - 1];
-        const [x1, y1] = sorted[i];
-        if (x0 < input && input < x1) {
-            return interpolateLinear(y0, y1, (input - x0) / (x1 - x0));
         }
     }
     return NaN;
@@ -1133,53 +1038,9 @@ const checkLoadingLimits = (stationMasses: number[], zeroFuelMass: number) =>
     stationMasses[7] <= maxExtendedAftBaggageWeight &&
     stationMasses[6] + stationMasses[7] <= maxCombinedExtendedBaggageWeight;
 
-// AFM 1.5 defines TAS as CAS corrected for altitude and temperature. This uses
-// the subsonic compressible-flow relation rather than treating KIAS as KCAS.
-const calibratedToTrueAirspeed = (kcas: number, pressureAltitudeFeet: number, oatCelsius: number) => {
-    if (![kcas, pressureAltitudeFeet, oatCelsius].every(Number.isFinite) ||
-        kcas < 0 || oatCelsius <= -273.15) {
-        return NaN;
-    }
-    const standardTemperatureK = seaLevelStandardTemperatureK -
-        standardTemperatureLapseRate * pressureAltitudeFeet * feetToMeters;
-    const actualTemperatureK = oatCelsius + 273.15;
-    if (standardTemperatureK <= 0) {
-        return NaN;
-    }
-    const pressureRatio = Math.pow(
-        standardTemperatureK / seaLevelStandardTemperatureK,
-        standardPressureExponent,
-    );
-    const seaLevelSpeedOfSound = Math.sqrt(
-        ratioOfSpecificHeats * specificGasConstantAir * seaLevelStandardTemperatureK,
-    );
-    const calibratedMetersPerSecond = kcas * knotsToMetersPerSecond;
-    const seaLevelMachSquared = Math.pow(calibratedMetersPerSecond / seaLevelSpeedOfSound, 2);
-    const impactPressure = seaLevelStandardPressurePa * (
-        Math.pow(
-            1 + (ratioOfSpecificHeats - 1) / 2 * seaLevelMachSquared,
-            ratioOfSpecificHeats / (ratioOfSpecificHeats - 1),
-        ) - 1
-    );
-    const staticPressure = seaLevelStandardPressurePa * pressureRatio;
-    const localMachSquared = 2 / (ratioOfSpecificHeats - 1) * (
-        Math.pow(
-            impactPressure / staticPressure + 1,
-            (ratioOfSpecificHeats - 1) / ratioOfSpecificHeats,
-        ) - 1
-    );
-    if (localMachSquared < 0) {
-        return NaN;
-    }
-    const localSpeedOfSound = Math.sqrt(
-        ratioOfSpecificHeats * specificGasConstantAir * actualTemperatureK,
-    );
-    return Math.sqrt(localMachSquared) * localSpeedOfSound / knotsToMetersPerSecond;
-};
-
 const refresh = () => {
     const weights = document.getElementById('weights')!;
-    const outputs = document.getElementById('outputs')!;
+    const outputs = document.getElementById('summary-outputs')!;
     const env = document.getElementById('env')!;
 
     const qnh = env.querySelector('.qnh')!;
@@ -1268,15 +1129,15 @@ const refresh = () => {
 
     const oat = parseValue(env.querySelector('.oat'));
     const pressAlt = parseValue(env.querySelector('.press-alt'));
+    const obst = parsePositiveValue(env.querySelector('.obst'));
+    setValue(outputs.querySelector('.takeoff-obstacle'), formatInt(obst));
+    setValue(outputs.querySelector('.landing-obstacle'), formatInt(obst));
 
     if (wbOk) {
         const takeoffClimbKias = interpolateAirspeed(vys, totalMass);
         const cruiseClimbKias = interpolateAirspeed(vclimbs, totalMass);
-        setValue(outputs.querySelector('.vy'),
-            formatInts(
-                takeoffClimbKias,
-                cruiseClimbKias,
-            ));
+        setValue(outputs.querySelector('.climb-takeoff-speed'), formatInt(takeoffClimbKias));
+        setValue(outputs.querySelector('.climb-cruise-speed'), formatInt(cruiseClimbKias));
         setValue(outputs.querySelector('.vg'), formatInt(interpolateAirspeed(vgs, totalMass)));
         setValue(outputs.querySelector('.vapp'),
             formatInts(
@@ -1284,6 +1145,9 @@ const refresh = () => {
                 interpolateAirspeed(vappTos, totalMass),
                 interpolateAirspeed(vappUp, totalMass),
             ));
+        setValue(outputs.querySelector('.takeoff-speed'), formatSlashInts(59, takeoffClimbKias));
+        const landingApproachSpeed = interpolateAirspeed(vappLdgs, totalMass);
+        setValue(outputs.querySelector('.landing-ldg-speed'), formatInt(landingApproachSpeed));
 
         let va = 94;
         if (isMAM) {
@@ -1302,29 +1166,44 @@ const refresh = () => {
         const cruiseClimbKcas = interpolateAirspeed(vclimbCalibrated, totalMass);
         const takeoffClimbGroundSpeed = calibratedToTrueAirspeed(takeoffClimbKcas, pressAlt, oat) - wind;
         const cruiseClimbGroundSpeed = calibratedToTrueAirspeed(cruiseClimbKcas, pressAlt, oat) - wind;
-        const obst = parsePositiveValue(env.querySelector('.obst'));
         if (takeoffCalc !== undefined) {
+            setValue(outputs.querySelector('.takeoff-ground'), formatInt(
+                takeoffCalc(pressAlt, oat, totalMass, wind, 0),
+            ));
             setValue(outputs.querySelector('.takeoff'), formatInt(takeoffCalc(pressAlt, oat, totalMass, wind, obst)));
-            setValue(outputs.querySelector('.landing'), formatInt(landingCalc!(pressAlt, oat, totalMass, wind, obst)));
+            setValue(outputs.querySelector('.landing-ldg-ground'), formatInt(
+                landingCalc!(pressAlt, oat, totalMass, wind, 0),
+            ));
+            setValue(outputs.querySelector('.landing-ldg'), formatInt(
+                landingCalc!(pressAlt, oat, totalMass, wind, obst),
+            ));
             const takeoffClimb = takeoffClimbCalc!(pressAlt, oat, totalMass);
             const cruiseClimb = cruiseClimbCalc!(pressAlt, oat, totalMass);
-            setValue(outputs.querySelector('.takeoff-climb'),
-                formatInts(takeoffClimb, cruiseClimb));
-            setValue(outputs.querySelector('.takeoff-climb-gradient'),
-                formatInts(
-                    feetPerNauticalMile(takeoffClimb, takeoffClimbGroundSpeed),
-                    feetPerNauticalMile(cruiseClimb, cruiseClimbGroundSpeed),
-                ));
+            setValue(outputs.querySelector('.climb-takeoff-rate'), formatInt(takeoffClimb));
+            setValue(outputs.querySelector('.climb-cruise-rate'), formatInt(cruiseClimb));
+            setValue(outputs.querySelector('.climb-takeoff-gradient'), formatInt(
+                feetPerNauticalMile(takeoffClimb, takeoffClimbGroundSpeed),
+            ));
+            setValue(outputs.querySelector('.climb-cruise-gradient'), formatInt(
+                feetPerNauticalMile(cruiseClimb, cruiseClimbGroundSpeed),
+            ));
         }
     } else {
-        clearValue(outputs.querySelector('.vy'));
+        clearValue(outputs.querySelector('.climb-takeoff-speed'));
+        clearValue(outputs.querySelector('.climb-cruise-speed'));
         clearValue(outputs.querySelector('.vg'));
         clearValue(outputs.querySelector('.vapp'));
+        clearValue(outputs.querySelector('.takeoff-speed'));
+        clearValue(outputs.querySelector('.landing-ldg-speed'));
         clearValue(outputs.querySelector('.va'));
+        clearValue(outputs.querySelector('.takeoff-ground'));
         clearValue(outputs.querySelector('.takeoff'));
-        clearValue(outputs.querySelector('.landing'));
-        clearValue(outputs.querySelector('.takeoff-climb'));
-        clearValue(outputs.querySelector('.takeoff-climb-gradient'));
+        clearValue(outputs.querySelector('.landing-ldg-ground'));
+        clearValue(outputs.querySelector('.landing-ldg'));
+        clearValue(outputs.querySelector('.climb-takeoff-rate'));
+        clearValue(outputs.querySelector('.climb-cruise-rate'));
+        clearValue(outputs.querySelector('.climb-takeoff-gradient'));
+        clearValue(outputs.querySelector('.climb-cruise-gradient'));
     }
 
     const isa = 15 - 1.98 * (pressAlt / 1000);
@@ -1356,121 +1235,6 @@ const refreshEnginePerformance = (tools: HTMLElement) => {
         Number.isFinite(fuelFlow) &&
             isRecommendedEngineSetting(pressureAltitude, rpm, manifoldPressure),
     );
-};
-
-const refreshTools = () => {
-    const tools = document.getElementById('tools')!;
-
-    refreshEnginePerformance(tools);
-
-    const wcdir = parseDirection(tools.querySelector('.wc-dir'));
-    const wcvel = parsePositiveValue(tools.querySelector('.wc-vel'));
-    const wcrwy = parseRunway(tools.querySelector('.wc-rwy')) * 10;
-    const wcd = deg2rad(wcrwy - wcdir);
-    const xwind = Math.round(Math.sin(wcd) * wcvel);
-    setValue(tools.querySelector('.wc-cross'),
-        Number.isNaN(xwind) ? '' :
-            (xwind === 0 ? '0' :
-                (xwind > 0 ? `${formatInt(xwind)} →` : `← ${formatInt(-xwind)}`)));
-    setValue(tools.querySelector('.wc-head'), formatInt(Math.round(Math.cos(wcd) * wcvel)));
-
-    const inbound = tools.querySelector('.h-in')!;
-    const outbound = tools.querySelector('.h-out')!;
-    if (inbound.classList.contains('active')) {
-        setValue(outbound, formatDir((parseDirection(inbound) + 180) % 360));
-    } else if (outbound.classList.contains('active')) {
-        setValue(inbound, formatDir((parseDirection(outbound) + 180) % 360));
-    }
-    const hHdg = parseDirection(tools.querySelector('.h-hdg'));
-    let holdingType = '';
-    let ob = parseDirection(outbound);
-    if (!Number.isNaN(ob) && !Number.isNaN(hHdg)) {
-        if ((tools.querySelector('.h-left') as HTMLInputElement).checked) {
-            holdingType = withinDirRange(ob, hHdg + 110, hHdg - 70) ? 'D' :
-                (withinDirRange(ob, hHdg + 1, hHdg + 110) ? 'P' : 'T');
-        } else {
-            holdingType = withinDirRange(ob, hHdg + 70, hHdg - 110) ? 'D' :
-                (withinDirRange(ob, hHdg, hHdg + 70) ? 'T' : 'P');
-        }
-    }
-    setValue(tools.querySelector('.h-type'), holdingType);
-
-    const variationCorrection = parseValue(tools.querySelector('.vr'), 0);
-    const trueCourse = parseDirection(tools.querySelector('.tc'));
-    const windSpeed = parsePositiveValue(tools.querySelector('.winvel'));
-    const windDirection = windSpeed === 0
-        ? parseDirection(tools.querySelector('.windir'), 0)
-        : parseDirection(tools.querySelector('.windir'));
-    const tas = parsePositiveValue(tools.querySelector('.tas'));
-    const windTriangle = calculateWindTriangle(trueCourse, tas, windDirection, windSpeed);
-    if (!windTriangle || !Number.isFinite(variationCorrection)) {
-        clearValue(tools.querySelector('.hdg'));
-        clearValue(tools.querySelector('.gs'));
-    } else {
-        const magneticHeading = magneticHeadingFromTrue(
-            windTriangle.trueHeading,
-            variationCorrection,
-        );
-        setValue(tools.querySelector('.hdg'),
-            `${formatDir(magneticHeading)}M,${formatDir(windTriangle.trueHeading)}T`);
-        setValue(tools.querySelector('.gs'), formatInt(windTriangle.groundSpeed));
-    }
-    let slope = parsePositiveValue(tools.querySelector('.d-slope'));
-    if (slope >= 90) {
-        slope = NaN;
-    }
-    const slopeRad = deg2rad(slope);
-    const dgs = parsePositiveValue(tools.querySelector('.d-gs'));
-    const dh = parsePositiveValue(tools.querySelector('.d-alt'));
-    setValue(tools.querySelector('.d-dist'), formatFloat(descentDistance(dh, slope), 1));
-    setValue(tools.querySelector('.d-rate'), formatInt(Math.ceil(dgs * nauticalInFeet / 60 * Math.tan(slopeRad))));
-
-    const ttas = parsePositiveValue(tools.querySelector('.t-tas'));
-    setValue(tools.querySelector('.t-bank'), formatInt(Math.round(rad2deg(Math.atan(ttas / 364)))));
-
-    const ccel = tools.querySelector('.c-cel')!;
-    const cfah = tools.querySelector('.c-fah')!;
-    if (ccel.classList.contains('active')) {
-        setValue(cfah, formatFloat(parseValue(ccel) * 1.8 + 32));
-    } else if (cfah.classList.contains('active')) {
-        setValue(ccel, formatFloat((parseValue(cfah) - 32) * 5 / 9));
-    }
-
-    const cnm = tools.querySelector('.c-nm')!;
-    const csm = tools.querySelector('.c-sm')!;
-    if (cnm.classList.contains('active')) {
-        setValue(csm, formatFloat(parseValue(cnm) * 1.15078));
-    } else if (csm.classList.contains('active')) {
-        setValue(cnm, formatFloat(parseValue(csm) * 0.868976));
-    }
-
-    const cft = tools.querySelector('.c-ft')!;
-    const cm = tools.querySelector('.c-m')!;
-    if (cft.classList.contains('active')) {
-        setValue(cm, formatInt(parseValue(cft) * 0.3048));
-    } else if (cm.classList.contains('active')) {
-        setValue(cft, formatInt(parseValue(cm) / 0.3048));
-    }
-
-    const clb = tools.querySelector('.c-lb')!;
-    const ckg = tools.querySelector('.c-kg')!;
-    if (clb.classList.contains('active')) {
-        setValue(ckg, formatInt(parseValue(clb) * 0.45359237));
-    } else if (ckg.classList.contains('active')) {
-        setValue(clb, formatInt(parseValue(ckg) / 0.45359237));
-    }
-
-    const fpmGs = parsePositiveValue(tools.querySelector('.fpm-gs'));
-    const fpmRate = tools.querySelector('.fpm-rate');
-    const fpmGradient = tools.querySelector('.fpm-gradient');
-    if (fpmSource === 'rate') {
-        setValue(fpmGradient, formatInt(feetPerNauticalMile(parseValue(fpmRate), fpmGs)));
-    } else if (fpmSource === 'gradient') {
-        const gradient = parseValue(fpmGradient);
-        setValue(fpmRate,
-            formatInt(Number.isFinite(gradient) && Number.isFinite(fpmGs) && fpmGs > 0 ?
-                gradient * fpmGs / 60 : NaN));
-    }
 };
 
 const regUpdatable = (updatable: NodeListOf<Element>, func: () => void) => {
@@ -1510,7 +1274,15 @@ const refreshCalculations = () => {
     refreshTools();
 };
 
+const supportsStateCookie = () => {
+    const protocol = new URL(window.location.href).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+};
+
 const writeStateCookie = (data: string) => {
+    if (!supportsStateCookie()) {
+        return;
+    }
     document.cookie = `${stateCookieName}=${encodeURIComponent(data)}; Max-Age=31536000; Path=/; Secure; SameSite=Lax`;
 };
 
@@ -1630,13 +1402,17 @@ const saveChanges = async () => {
 
 const recover = () => {
     const query = new URLSearchParams(window.location.search).get('s');
-    const cookie = document.cookie.match(new RegExp(`(?:^|;\\s*)${stateCookieName}=([^;]*)`));
     let cookieState = '';
-    if (cookie) {
-        try {
-            cookieState = decodeURIComponent(cookie[1]);
-        } catch {
-            console.warn('Ignoring malformed saved-state cookie.');
+    if (!query && supportsStateCookie()) {
+        const cookie = document.cookie.match(
+            new RegExp(`(?:^|;\\s*)${stateCookieName}=([^;]*)`),
+        );
+        if (cookie) {
+            try {
+                cookieState = decodeURIComponent(cookie[1]);
+            } catch {
+                console.warn('Ignoring malformed saved-state cookie.');
+            }
         }
     }
     void setUserData(query || cookieState);
@@ -1661,6 +1437,7 @@ const regTandemInput = (container: Element, a: string, b: string) => {
 
 const tools = document.getElementById('tools')!;
 const env = document.getElementById('env')!;
+let refreshTools = () => {};
 const toolsDrawer = document.getElementById('tools-drawer') as HTMLDialogElement;
 const toolsToggle = document.getElementById('tools-toggle')!;
 const toolsClose = document.getElementById('tools-close')!;
@@ -1690,21 +1467,18 @@ window.addEventListener('load', () => {
     landingCalc = createChartCalculator(landingChart);
     takeoffClimbCalc = createChartCalculator(takeoffClimbChart);
     cruiseClimbCalc = createChartCalculator(cruiseClimbChart);
+    try {
+        refreshTools = FlightTools.initialize(tools, () => refreshEnginePerformance(tools));
+    } catch (error) {
+        // The original AFM-chart calculators are the primary application.
+        // A side-tool failure must not prevent their initial calculation.
+        console.error('Could not initialize General Tools.', error);
+    }
     recover();
 });
 
-regTandemInput(tools, '.h-in', '.h-out');
-regTandemInput(tools, '.c-cel', '.c-fah');
-regTandemInput(tools, '.c-nm', '.c-sm');
-regTandemInput(tools, '.c-ft', '.c-m');
-regTandemInput(tools, '.c-lb', '.c-kg');
-regTandemInput(tools, '.fpm-rate', '.fpm-gradient');
-tools.querySelector('.fpm-rate')!.addEventListener('input', () => fpmSource = 'rate');
-tools.querySelector('.fpm-gradient')!.addEventListener('input', () => fpmSource = 'gradient');
 regTandemInput(env, '.qnh', '.press-alt');
 
 regUpdatable(document.querySelectorAll('#weights td .update'), refresh);
 regUpdatable(document.querySelectorAll('#env td .update'), refresh);
-regUpdatable(document.querySelectorAll('#tools td .update'), refreshTools);
-
 document.getElementById('save')!.addEventListener('click', () => void saveChanges());

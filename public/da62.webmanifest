@@ -1,9 +1,9 @@
 {
-  "name": "DA40 Computer",
-  "short_name": "DA40",
-  "description": "DA40 weight, performance, navigation, and flight-planning calculator.",
-  "id": "./da40.html",
-  "start_url": "./da40.html",
+  "name": "DA62 Computer",
+  "short_name": "DA62",
+  "description": "DA62 weight, balance, performance, navigation, and flight-planning calculator.",
+  "id": "./da62.html",
+  "start_url": "./da62.html",
   "scope": "./",
   "lang": "en",
   "display": "standalone",
@@ -11,17 +11,17 @@
   "theme_color": "#172033",
   "icons": [
     {
-      "src": "assets/icons/icon-192.png",
+      "src": "assets/icons/da62-icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "assets/icons/icon-512.png",
+      "src": "assets/icons/da62-icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "assets/icons/icon-maskable-512.png",
+      "src": "assets/icons/da62-icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

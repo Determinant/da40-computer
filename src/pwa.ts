@@ -19,6 +19,9 @@ const showPwaStatus = (message: string, persistent = false) => {
 const isInstalledPwa = () =>
     window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
+const supportsServiceWorkerRegistration = () =>
+    window.location.protocol === 'http:' || window.location.protocol === 'https:';
+
 const requestPersistentStorage = async () => {
     if (!isInstalledPwa() || !navigator.storage?.persisted || !navigator.storage.persist) {
         return;
@@ -30,7 +33,7 @@ const requestPersistentStorage = async () => {
 };
 
 const registerServiceWorker = async () => {
-    if (!('serviceWorker' in navigator)) {
+    if (!supportsServiceWorkerRegistration() || !('serviceWorker' in navigator)) {
         return;
     }
 

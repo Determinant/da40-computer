@@ -1,4 +1,4 @@
-import { cp, mkdir } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 
 const publicDirectory = new URL("../public/", import.meta.url);
 const outputDirectory = new URL("../dist/", import.meta.url);
@@ -9,14 +9,12 @@ const jsonUrlBrowserDirectory = new URL(
   import.meta.url,
 );
 const vendorFiles = [
-  "json-url.js",
-  "json-url-998.js",
-  "json-url-998.js.LICENSE.txt",
-  "json-url-lzma.js",
-  "json-url-msgpack.js",
-  "json-url-safe64.js",
-  "json-url-safe64.js.LICENSE.txt",
-  "json-url.js.LICENSE.txt",
+  // The split bundle loads codec chunks dynamically, which is unreliable for
+  // a page opened directly from file:// because every local file has an
+  // opaque origin. The single bundle keeps saved links usable both locally
+  // and through a web server.
+  "json-url-single.js",
+  "json-url-single.js.LICENSE.txt",
 ];
 const vendorLicenses = [
   ["json-url/LICENSE", "json-url-LICENSE.txt"],
@@ -51,3 +49,34 @@ await Promise.all([
   )),
   cp(new URL("../LICENSE", import.meta.url), new URL("LICENSE.txt", outputDirectory)),
 ]);
+
+// Browsers may assign separate opaque origins to neighboring file:// URLs.
+// That makes an SVG rendered through <object> visible but prevents the parent
+// page from reading its paths for the DA40 nomograph calculation. Embed the
+// four original chart files into the deployable HTML so dist/da40.html works
+// both from a web server and when opened directly from disk. Each chart is
+// instantiated in its own shadow root to preserve the ID isolation previously
+// provided by separate SVG documents.
+const da40HtmlUrl = new URL("da40.html", outputDirectory);
+const da40Charts = [
+  ["takeoff", "assets/charts/takeoff-chart.svg"],
+  ["landing", "assets/charts/landing-chart.svg"],
+  ["takeoff-climb", "assets/charts/takeoff-climb-chart.svg"],
+  ["cruise-climb", "assets/charts/cruise-climb-chart.svg"],
+];
+let da40Html = await readFile(da40HtmlUrl, "utf8");
+for (const [id, relativePath] of da40Charts) {
+  const objectMarkup =
+    `<object class="chart" data="${relativePath}" type="image/svg+xml" id="${id}"></object>`;
+  if (!da40Html.includes(objectMarkup)) {
+    throw new Error(`DA40 chart placeholder is missing: ${id}`);
+  }
+  const svg = (await readFile(new URL(relativePath, publicDirectory), "utf8"))
+    .replace(/^\s*<\?xml[^>]*\?>\s*/, "");
+  const inlineMarkup = `<div class="chart chart-inline" id="${id}" ` +
+    `data-chart-source="${relativePath}">` +
+    `<template><style>:host{display:block}svg{display:block;width:100%;height:auto}</style>` +
+    `${svg}</template></div>`;
+  da40Html = da40Html.replace(objectMarkup, inlineMarkup);
+}
+await writeFile(da40HtmlUrl, da40Html);

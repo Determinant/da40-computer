@@ -13,9 +13,9 @@
     "build:static": "node scripts/copy-static.mjs",
     "build:scripts": "tsc",
     "build:service-worker": "node scripts/build-service-worker.mjs",
-    "test": "npm run build",
-    "verify": "node scripts/verify-build.mjs && node tests/pwa.test.mjs && node tests/chart-trace.test.mjs && node tests/chart-calculator.test.mjs && node tests/da40.test.mjs",
-    "build": "npm run clean && npm run build:static && npm run build:scripts && npm run build:service-worker && npm run verify",
+    "build": "npm run clean && npm run build:static && npm run build:scripts && npm run build:service-worker",
+    "verify": "node scripts/verify-build.mjs && node --test --test-concurrency=1",
+    "test": "npm run build && npm run verify",
     "prestart": "npm run build",
     "start": "node scripts/serve.mjs"
   },

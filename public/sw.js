@@ -1,7 +1,10 @@
 const CACHE_PREFIX = "da40-";
 const CACHE_NAME = `${CACHE_PREFIX}static-__DA40_BUILD_ID__`;
 const PRECACHE_URLS = /* __DA40_PRECACHE_URLS__ */ [];
-const APP_URL = new URL("./da40.html", self.registration.scope);
+const APP_URLS = [
+  new URL("./da40.html", self.registration.scope),
+  new URL("./da62.html", self.registration.scope),
+];
 const SCOPE_URL = new URL(self.registration.scope);
 
 self.addEventListener("install", event => {
@@ -42,10 +45,11 @@ self.addEventListener("fetch", event => {
       return cachedResponse;
     }
 
+    const requestedAppUrl = APP_URLS.find(appUrl => requestUrl.pathname === appUrl.pathname);
     const isAppNavigation = event.request.mode === "navigate" &&
-      (requestUrl.pathname === APP_URL.pathname || requestUrl.pathname === SCOPE_URL.pathname);
+      (requestedAppUrl !== undefined || requestUrl.pathname === SCOPE_URL.pathname);
     if (isAppNavigation) {
-      const appShell = await caches.match(APP_URL);
+      const appShell = await caches.match(requestedAppUrl ?? APP_URLS[0]);
       if (appShell) {
         return appShell;
       }

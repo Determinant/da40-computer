@@ -7,6 +7,10 @@ const serviceWorker = await readFile(
   new URL("../dist/sw.js", import.meta.url),
   "utf8",
 );
+const pwaClient = await readFile(
+  new URL("../dist/assets/js/pwa.js", import.meta.url),
+  "utf8",
+);
 const cacheNameMatch = serviceWorker.match(/static-([a-f0-9]{16})/);
 assert.ok(cacheNameMatch);
 const currentCacheName = `da40-static-${cacheNameMatch[1]}`;
@@ -141,6 +145,25 @@ test("saved app URLs fall back to the cached document while offline", async () =
   assert.equal(harness.fetchCalls, 0);
 });
 
+test("saved DA62 URLs fall back to the DA62 document while offline", async () => {
+  const appShell = { source: "offline DA62 app shell" };
+  const harness = createHarness({
+    cacheMatch: async request => {
+      const url = String(request.url ?? request);
+      return url === "https://example.test/app/da62.html" ? appShell : undefined;
+    },
+    fetchResponse: () => { throw new Error("network must not be used"); },
+  });
+  const response = dispatchFetch(harness.listeners.get("fetch"), {
+    method: "GET",
+    mode: "navigate",
+    url: "https://example.test/app/da62.html?s=saved-state",
+  });
+
+  assert.equal(await response, appShell);
+  assert.equal(harness.fetchCalls, 0);
+});
+
 test("precached resources are returned without using the network", async () => {
   const cachedResponse = { source: "cache" };
   const harness = createHarness({
@@ -176,4 +199,41 @@ test("uncached same-origin requests use the network and external requests are ig
   });
   assert.equal(externalResponse, undefined);
   assert.equal(harness.fetchCalls, 1);
+});
+
+test("pages opened directly from disk skip service-worker setup without an error banner", () => {
+  const listeners = new Map();
+  const status = { hidden: true, textContent: "" };
+  let registrations = 0;
+  const context = {
+    document: {
+      getElementById: id => id === "pwa-status" ? status : null,
+    },
+    navigator: {
+      serviceWorker: {
+        controller: null,
+        register: () => {
+          registrations += 1;
+          throw new Error("service workers are unavailable for file URLs");
+        },
+      },
+      standalone: false,
+    },
+    window: {
+      addEventListener: (type, listener) => listeners.set(type, listener),
+      clearTimeout: () => undefined,
+      location: { protocol: "file:" },
+      matchMedia: () => ({ matches: false }),
+      setTimeout: () => 0,
+    },
+    console,
+  };
+  vm.createContext(context);
+  vm.runInContext(pwaClient, context);
+
+  listeners.get("load")();
+
+  assert.equal(registrations, 0);
+  assert.equal(status.hidden, true);
+  assert.equal(status.textContent, "");
 });

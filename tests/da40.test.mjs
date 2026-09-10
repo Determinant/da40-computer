@@ -1,14 +1,31 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
 
+const digest = value => createHash('sha256')
+  .update(JSON.stringify(value))
+  .digest('hex');
+
+const commonSource = await readFile(
+  new URL('../dist/assets/js/performance-common.js', import.meta.url),
+  'utf8',
+);
+const flightToolsSource = await readFile(
+  new URL('../dist/assets/js/flight-tools.js', import.meta.url),
+  'utf8',
+);
 const source = await readFile(
   new URL('../dist/assets/js/da40.js', import.meta.url),
   'utf8',
 );
 const html = await readFile(
   new URL('../public/da40.html', import.meta.url),
+  'utf8',
+);
+const builtHtml = await readFile(
+  new URL('../dist/da40.html', import.meta.url),
   'utf8',
 );
 
@@ -22,7 +39,9 @@ const element = {
   addEventListener() {},
   classList,
   innerText: '',
+  parentNode: { classList },
   querySelector() { return element; },
+  querySelectorAll() { return []; },
   setAttribute() {},
   textContent: '',
 };
@@ -46,6 +65,8 @@ const context = vm.createContext({
     location: { href: 'http://localhost/da40.html', search: '' },
   },
 });
+vm.runInContext(commonSource, context);
+vm.runInContext(flightToolsSource, context);
 vm.runInContext(source, context);
 
 const evaluate = (expression) => vm.runInContext(expression, context);
@@ -62,6 +83,7 @@ test('paired integer output is blank when a value is unavailable', () => {
   assert.equal(evaluate('formatInts(NaN, NaN)'), '');
   assert.equal(evaluate('formatInts(67.4, NaN)'), '');
   assert.equal(evaluate('formatInts(67.4, 75.6)'), '67, 76');
+  assert.equal(evaluate('formatSlashInts(59, 67.4)'), '59 / 67');
 });
 
 test('blank numeric input becomes NaN unless a default is provided', () => {
@@ -90,6 +112,72 @@ test('OAT input accepts the AFM minimum of -20 C without truncation', () => {
     restoreText({ querySelector: () => target }, ['oat'], { oat: '-200' });
     return target.value;
   })()`), '-20');
+});
+
+test('DA40 groups takeoff and landing in one Field Performance box', () => {
+  const fieldPerformance = html.match(
+    /<table class="main performance-table field-performance-table" id="field-performance">([\s\S]*?)<\/table>/,
+  )?.[1] ?? '';
+  assert.match(fieldPerformance, />Field Performance</);
+  assert.match(fieldPerformance, />Takeoff Distance · ft</);
+  assert.match(fieldPerformance, /class="takeoff-ground"/);
+  assert.match(fieldPerformance, /class="takeoff-obstacle"/);
+  assert.match(fieldPerformance, />Landing Distance · ft</);
+  assert.match(fieldPerformance, /class="landing-ldg-ground"/);
+  assert.doesNotMatch(fieldPerformance, /landing-up/);
+});
+
+test('DA40 retains exactly the four original interactive AFM chart objects', () => {
+  const chartObjects = [...html.matchAll(
+    /<object class="chart" data="([^"]+)" type="image\/svg\+xml" id="([^"]+)"><\/object>/g,
+  )].map((match) => ({ data: match[1], id: match[2] }));
+  assert.deepEqual(chartObjects, [
+    { data: 'assets/charts/takeoff-chart.svg', id: 'takeoff' },
+    { data: 'assets/charts/landing-chart.svg', id: 'landing' },
+    { data: 'assets/charts/takeoff-climb-chart.svg', id: 'takeoff-climb' },
+    { data: 'assets/charts/cruise-climb-chart.svg', id: 'cruise-climb' },
+  ]);
+});
+
+test('the built DA40 page embeds those charts for direct file use', () => {
+  assert.doesNotMatch(builtHtml, /<object\b[^>]*class="chart"/);
+  for (const id of ['takeoff', 'landing', 'takeoff-climb', 'cruise-climb']) {
+    assert.match(
+      builtHtml,
+      new RegExp(`<div class="chart chart-inline" id="${id}"[^>]*><template>`),
+    );
+  }
+});
+
+test('DA40 uses the shared general-tool implementation', () => {
+  assert.match(source, /FlightTools\.initialize\(tools,/);
+});
+
+test('DA40 initializes all original SVG calculators before optional side tools', () => {
+  const takeoffInit = source.indexOf('takeoffCalc = createChartCalculator(takeoffChart)');
+  const landingInit = source.indexOf('landingCalc = createChartCalculator(landingChart)');
+  const takeoffClimbInit = source.indexOf(
+    'takeoffClimbCalc = createChartCalculator(takeoffClimbChart)',
+  );
+  const cruiseClimbInit = source.indexOf(
+    'cruiseClimbCalc = createChartCalculator(cruiseClimbChart)',
+  );
+  const toolsInit = source.indexOf('FlightTools.initialize(tools');
+  const recoverCall = source.indexOf('recover()', toolsInit);
+  for (const chartInit of [takeoffInit, landingInit, takeoffClimbInit, cruiseClimbInit]) {
+    assert.ok(chartInit >= 0 && chartInit < toolsInit);
+  }
+  assert.ok(toolsInit >= 0 && toolsInit < recoverCall);
+  assert.match(source.slice(toolsInit, recoverCall), /catch \(error\)/);
+});
+
+test('direct-file operation does not access unsupported cookies', () => {
+  const originalHref = context.window.location.href;
+  context.window.location.href = 'file:///tmp/da40.html?s=saved';
+  assert.equal(evaluate('supportsStateCookie()'), false);
+  evaluate(`document.cookie = 'unchanged'; writeStateCookie('new-state')`);
+  assert.equal(evaluate('document.cookie'), 'unchanged');
+  context.window.location.href = originalHref;
 });
 
 test('airspeed interpolation clamps below its table and rejects invalid inputs', () => {
@@ -155,6 +243,97 @@ test('engine performance data preserves representative AFM cells and recommendat
   );
 });
 
+test('AFM checksums cover every engine-performance and airspeed table cell', () => {
+  const engineData = evaluateJson(`({
+    pressureAltitudes: enginePerformancePressureAltitudes,
+    columns: enginePerformanceTable,
+  })`);
+  assert.equal(engineData.pressureAltitudes.length, 18);
+  assert.equal(engineData.columns.length, 12);
+  assert.deepEqual(
+    engineData.columns.map(column => column.manifoldPressure.length),
+    Array(12).fill(engineData.pressureAltitudes.length),
+  );
+  assert.equal(
+    digest(engineData),
+    '1a2d6d00e4686a1b3ec862f21b575158f195b68a846c787be89641f4ac6cfea5',
+  );
+
+  const airspeedData = evaluateJson(`({
+    weightSteps,
+    takeoffClimbKias: vys,
+    cruiseClimbKias: vclimbs,
+    takeoffClimbKcas: vyCalibrated,
+    cruiseClimbKcas: vclimbCalibrated,
+    bestGlideKias: vgs,
+    approachLdgKias: vappLdgs,
+    emergencyToKias: vappTos,
+    emergencyUpKias: vappUp,
+  })`);
+  assert.equal(
+    digest(airspeedData),
+    '44c3bf44fe4112ba0c19872bbedbbb6af736297c8a640f9870071a052ee8a409',
+  );
+});
+
+test('every exact AFM engine and airspeed entry round-trips through the calculators', () => {
+  const engineData = evaluateJson(`({
+    pressureAltitudes: enginePerformancePressureAltitudes,
+    columns: enginePerformanceTable,
+  })`);
+  let comparisons = 0;
+  for (const column of engineData.columns) {
+    for (const mixture of ['bestEconomy', 'bestPower']) {
+      const expected = column.fuelFlow[mixture];
+      const actual = evaluate(
+        `fuelFlowAtPower(${column.power}, ${column.rpm}, '${mixture}')`,
+      );
+      comparisons++;
+      if (expected === null) {
+        assert.equal(Number.isNaN(actual), true);
+      } else {
+        assertClose(actual, expected);
+      }
+    }
+    for (let index = 0; index < engineData.pressureAltitudes.length; index++) {
+      const expected = column.manifoldPressure[index];
+      const actual = evaluate(
+        `manifoldPressureAtPower(${engineData.pressureAltitudes[index]}, ` +
+          `${column.rpm}, ${column.power})`,
+      );
+      comparisons++;
+      if (expected === null) {
+        assert.equal(Number.isNaN(actual), true);
+      } else {
+        assertClose(actual, expected);
+      }
+    }
+  }
+  assert.equal(comparisons, 240);
+
+  const schedules = evaluateJson(`[
+    vys,
+    vclimbs,
+    vyCalibrated,
+    vclimbCalibrated,
+    vgs,
+    vappLdgs,
+    vappTos,
+    vappUp,
+  ]`);
+  const roundTrippedSchedules = evaluateJson(`[
+    vys,
+    vclimbs,
+    vyCalibrated,
+    vclimbCalibrated,
+    vgs,
+    vappLdgs,
+    vappTos,
+    vappUp,
+  ].map(speeds => weightSteps.map(mass => interpolateAirspeed(speeds, mass)))`);
+  assert.deepEqual(roundTrippedSchedules, schedules);
+});
+
 test('engine performance calculates either AFM fuel mixture schedule', () => {
   assertClose(
     evaluate("calculateEnginePerformance(0, 2400, 24, 'bestEconomy').fuelFlow"),
@@ -186,34 +365,34 @@ test('engine performance does not extrapolate beyond AFM data', () => {
 });
 
 test('direction formatting rounds the result and wraps north correctly', () => {
-  assert.equal(evaluate('formatDir(12.5)'), '013');
-  assert.equal(evaluate('formatDir(359.6)'), '360');
+  assert.equal(evaluate('FlightTools.formatDirection(12.5)'), '013');
+  assert.equal(evaluate('FlightTools.formatDirection(359.6)'), '360');
 });
 
 test('descent distance retains tenths of a nautical mile', () => {
-  assert.equal(evaluate('formatFloat(descentDistance(1000, 3), 1)'), '3.1');
-  assert.equal(evaluate('formatFloat(descentDistance(100, 3), 1)'), '0.3');
+  assert.equal(evaluate('formatFloat(FlightTools.descentDistance(1000, 3), 1)'), '3.1');
+  assert.equal(evaluate('formatFloat(FlightTools.descentDistance(100, 3), 1)'), '0.3');
 });
 
 test('wind navigation handles crosswinds, variation, infeasible wind, and calm wind', () => {
   assert.match(html, />E−\/W\+<\/td>/);
   assert.equal(
-    evaluate('Math.round(calculateWindTriangle(360, 120, 270, 20).trueHeading)'),
+    evaluate('Math.round(FlightTools.calculateWindTriangle(360, 120, 270, 20).trueHeading)'),
     350,
   );
   assertClose(
-    evaluate('calculateWindTriangle(360, 120, 270, 20).groundSpeed'),
+    evaluate('FlightTools.calculateWindTriangle(360, 120, 270, 20).groundSpeed'),
     118.3216,
     0.001,
   );
   assert.equal(
-    evaluate('Math.round(calculateWindTriangle(180, 120, 270, 20).trueHeading)'),
+    evaluate('Math.round(FlightTools.calculateWindTriangle(180, 120, 270, 20).trueHeading)'),
     190,
   );
-  assert.equal(evaluate('calculateWindTriangle(0, 10, 90, 20) === null'), true);
-  assert.equal(evaluate('formatDir(magneticHeadingFromTrue(190, -10))'), '180');
-  assert.equal(evaluate('formatDir(magneticHeadingFromTrue(190, 10))'), '200');
-  assert.equal(evaluate('calculateWindTriangle(90, 120, 0, 0).groundSpeed'), 120);
+  assert.equal(evaluate('FlightTools.calculateWindTriangle(0, 10, 90, 20) === null'), true);
+  assert.equal(evaluate('FlightTools.formatDirection(190 - 10)'), '180');
+  assert.equal(evaluate('FlightTools.formatDirection(190 + 10)'), '200');
+  assert.equal(evaluate('FlightTools.calculateWindTriangle(90, 120, 0, 0).groundSpeed'), 120);
 });
 
 test('true airspeed conversion follows standard-atmosphere physics', () => {

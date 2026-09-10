@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DA62 Computer</title>
+    <meta name="description" content="DA62 weight, balance, takeoff, landing, climb, navigation, and flight-planning calculator.">
+    <link rel="manifest" href="da62.webmanifest">
+    <meta name="theme-color" content="#172033">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="DA62">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="icon" href="assets/icons/da62-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/da62-apple-touch-icon-180.png">
+    <link rel="stylesheet" href="assets/calculator.css">
+  </head>
+  <body>
+    <div id="pwa-status" class="pwa-status" role="status" aria-live="polite" hidden></div>
+    <main id="da62-calculator" class="container">
+      <header class="title">
+        <div>
+          <h1>DA62 Computer</h1>
+          <p class="subtitle">Weight, balance, performance, and flight planning</p>
+        </div>
+        <div class="title-actions">
+          <a class="aircraft-link" href="da40.html">DA40 computer</a>
+          <button id="tools-toggle" class="tools-toggle" type="button" aria-haspopup="dialog" aria-controls="tools-drawer" aria-expanded="false">Tools</button>
+        </div>
+      </header>
+
+      <div class="summary-grid">
+        <div class="summary-panel">
+          <table class="main weights-table" id="weights">
+            <colgroup><col><col><col></colgroup>
+            <tr class="header0"><td colspan="3">Weights</td></tr>
+            <tr class="header">
+              <td class="checkbox-options" colspan="2">
+                <label><input type="checkbox" class="update" name="mam-62-001" checked><span>2,300 kg MTOM · MÄM 62-001 (no OÄM 62-018)</span></label><br>
+                <label><input type="checkbox" class="update" name="mam-62-063"><span>2,200 kg MZFM · MÄM 62-063</span></label><br>
+                <label><input type="checkbox" class="update" name="oam-62-019" checked><span>7 seats · OÄM 62-019</span></label><br>
+                <label><input type="checkbox" class="update" name="oam-62-001"><span>Auxiliary tanks · OÄM 62-001</span></label><br>
+                <label><input type="checkbox" class="update" name="oam-62-002" checked><span>TKS de-icing system · OÄM 62-002</span></label><br>
+                <label><input type="checkbox" class="update" name="oam-62-009" checked><span>Garmin GWX 70 weather radar · OÄM 62-009</span></label>
+              </td>
+              <td>Moment</td>
+            </tr>
+            <tr><td>Empty Weight</td><td><input type="text" class="empty-mass update" maxlength="8" inputmode="decimal" autocomplete="off" aria-label="Current empty weight in pounds"></td><td><input type="text" class="empty-moment update" maxlength="8" inputmode="decimal" autocomplete="off" aria-label="Current empty-weight moment in inch-pounds"></td></tr>
+            <tr><td>Front Seat L</td><td><input type="text" class="front-left-mass update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Front-left occupant weight in pounds"></td><td><span class="front-left-moment"></span></td></tr>
+            <tr><td>Front Seat R</td><td><input type="text" class="front-right-mass update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Front-right occupant weight in pounds"></td><td><span class="front-right-moment"></span></td></tr>
+            <tr><td>Rear Row I · L</td><td><input type="text" class="row-one-left-mass update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Rear row one left occupant weight in pounds"></td><td><span class="row-one-left-moment"></span></td></tr>
+            <tr><td>Rear Row I · R</td><td><input type="text" class="row-one-right-mass update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Rear row one right occupant weight in pounds"></td><td><span class="row-one-right-moment"></span></td></tr>
+            <tr><td>Rear Row II · L</td><td><input type="text" class="row-two-left-mass update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Optional rear row two left occupant weight in pounds"></td><td><span class="row-two-left-moment"></span></td></tr>
+            <tr><td>Rear Row II · R</td><td><input type="text" class="row-two-right-mass update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Optional rear row two right occupant weight in pounds"></td><td><span class="row-two-right-moment"></span></td></tr>
+            <tr><td>LH Nose Baggage</td><td><input type="text" class="nose-left-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Left nose baggage weight in pounds"></td><td><span class="nose-left-moment"></span></td></tr>
+            <tr><td>RH Nose Baggage</td><td><input type="text" class="nose-right-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Right nose baggage weight in pounds"></td><td><span class="nose-right-moment"></span></td></tr>
+            <tr><td>Rear Baggage</td><td><button id="rear-baggage-edit" class="table-edit" type="button" aria-haspopup="dialog" aria-controls="rear-baggage-dialog" aria-expanded="false"><span class="rear-baggage-total"></span> lb · Edit</button></td><td><span class="rear-baggage-moment"></span></td></tr>
+            <tr><td>De-icing Fluid (lb)</td><td><input type="text" class="deicing-fluid-mass update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="De-icing fluid weight in pounds; maximum 35.2 pounds"></td><td><span class="deicing-fluid-moment"></span></td></tr>
+            <tr><td>Zero Fuel (lb)</td><td><span class="zero-fuel-mass"></span></td><td><span class="zero-fuel-moment"></span></td></tr>
+            <tr><td>Main Fuel (gal)</td><td><input type="text" class="main-fuel-vol update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Usable main fuel in US gallons"></td><td><span class="main-fuel-moment"></span></td></tr>
+            <tr><td>Aux Fuel (gal)</td><td><input type="text" class="aux-fuel-vol update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Usable auxiliary fuel in US gallons"></td><td><span class="aux-fuel-moment"></span></td></tr>
+            <tr><td>Total (lb)</td><td><span class="total-mass"></span></td><td><span class="total-moment"></span></td></tr>
+          </table>
+
+          <dialog id="rear-baggage-dialog" class="compact-dialog" aria-labelledby="rear-baggage-title">
+            <div class="compact-dialog-header">
+              <div>
+                <h2 id="rear-baggage-title">Rear Baggage</h2>
+                <p class="rear-baggage-layout"></p>
+              </div>
+              <button id="rear-baggage-close" class="compact-dialog-close" type="button" aria-label="Close rear baggage editor">×</button>
+            </div>
+            <div class="compact-dialog-body">
+              <table class="main baggage-editor">
+                <colgroup><col><col><col></colgroup>
+                <tbody class="rear-baggage-five-seat conditional">
+                  <tr class="header"><td>5-seat area</td><td>Weight (lb)</td><td>Limit</td></tr>
+                  <tr><td>A</td><td><input type="text" class="rear-a-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear baggage area A weight in pounds"></td><td>13 lb</td></tr>
+                  <tr><td>B</td><td><input type="text" class="rear-b-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear baggage area B weight in pounds"></td><td>13 lb</td></tr>
+                  <tr><td>C</td><td><input type="text" class="rear-c-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear baggage area C weight in pounds"></td><td>150 lb</td></tr>
+                  <tr><td>D</td><td><input type="text" class="rear-d-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear baggage area D weight in pounds"></td><td>88 lb</td></tr>
+                </tbody>
+                <tbody class="rear-baggage-seven-seat conditional" hidden>
+                  <tr class="header"><td>7-seat area</td><td>Weight (lb)</td><td>Limit</td></tr>
+                  <tr><td>E</td><td><input type="text" class="rear-e-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear baggage area E weight in pounds"></td><td>13 lb</td></tr>
+                  <tr><td>F</td><td><input type="text" class="rear-f-mass update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Rear baggage area F weight in pounds"></td><td>88 lb</td></tr>
+                </tbody>
+                <tfoot>
+                  <tr><td>Total</td><td><strong><span class="rear-baggage-total"></span> lb</strong></td><td><span class="rear-baggage-limit"></span> lb max</td></tr>
+                </tfoot>
+              </table>
+              <p class="baggage-remaining"><span class="rear-baggage-remaining"></span> lb remaining in this layout.</p>
+            </div>
+          </dialog>
+
+          <table class="main environment-table" id="env">
+            <colgroup><col><col></colgroup>
+            <tr class="header0"><td colspan="2">Environment</td></tr>
+            <tr class="header"><td colspan="2"></td></tr>
+            <tr><td>OAT (°C)</td><td><input type="text" class="oat update" value="15" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Outside air temperature in degrees Celsius"></td></tr>
+            <tr><td>QNH (inHg)</td><td><input type="text" class="qnh update" value="29.92" maxlength="5" inputmode="decimal" autocomplete="off" aria-label="QNH in inches of mercury"></td></tr>
+            <tr><td>Headwind (kt)</td><td><input type="text" class="headwind update" value="0" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Headwind in knots; enter a negative value for tailwind"></td></tr>
+            <tr><td>Elevation (ft)</td><td><input type="text" class="field-alt update" value="0" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Field elevation in feet"></td></tr>
+            <tr class="header"><td colspan="2"></td></tr>
+            <tr><td>Pressure Alt. (ft)</td><td><input type="text" class="press-alt update" value="0" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Pressure altitude in feet"></td></tr>
+            <tr><td>Density Alt. (ft)</td><td><span class="density-alt"></span></td></tr>
+          </table>
+        </div>
+
+        <div class="summary-panel">
+          <table class="main aircraft-data-table da62-aircraft-data" id="outputs">
+            <colgroup><col><col></colgroup>
+            <tr class="header0"><td colspan="2">Aircraft Data</td></tr>
+            <tr class="header"><td colspan="2"></td></tr>
+            <tr><td>Weight (lb)</td><td class="mass-wrapper"><span class="total-mass"></span></td></tr>
+            <tr><td>CG (in)</td><td class="cg-wrapper"><span class="cg"></span></td></tr>
+            <tr><td>Zero Fuel Weight (lb)</td><td class="result"><span class="zero-fuel-mass"></span></td></tr>
+            <tr><td>AFM Performance Axis</td><td class="result">3,968–5,071 lb</td></tr>
+          </table>
+
+          <table class="main performance-table field-performance-table" id="field-performance">
+            <colgroup><col><col><col><col></colgroup>
+            <tr class="header0"><td colspan="4">Field Performance</td></tr>
+            <tr class="section-title"><td colspan="4">Takeoff Distance · ft</td></tr>
+            <tr class="header"><td>Flaps</td><td>V<sub>R</sub> / V<sub>50</sub> (KIAS)</td><td>Ground Roll</td><td>Over 50 ft</td></tr>
+            <tr><td>T/O</td><td class="result takeoff-to-speed"></td><td class="result takeoff-to-ground"></td><td class="result takeoff-to-50"></td></tr>
+            <tr><td>UP</td><td class="result takeoff-up-speed"></td><td class="result takeoff-up-ground"></td><td class="result takeoff-up-50"></td></tr>
+            <tr class="section-title"><td colspan="4">Landing Distance · ft</td></tr>
+            <tr class="header"><td>Flaps</td><td>V<sub>REF</sub> (KIAS)</td><td>Ground Roll</td><td>Over 50 ft</td></tr>
+            <tr><td>LDG</td><td class="result landing-ldg-speed"></td><td class="result landing-ldg-ground"></td><td class="result landing-ldg-50"></td></tr>
+            <tr><td>T/O / UP</td><td class="result landing-abnormal-speed"></td><td class="result landing-abnormal-ground"></td><td class="result landing-abnormal-50"></td></tr>
+          </table>
+
+          <table class="main performance-table climb-performance-table" id="climb-performance">
+            <colgroup><col><col><col><col></colgroup>
+            <tr class="header0"><td colspan="4">Climb Performance</td></tr>
+            <tr class="header"><td>Configuration</td><td>KIAS</td><td>ft/min</td><td>Gradient</td></tr>
+            <tr><td>Takeoff · T/O</td><td class="result climb-to-speed"></td><td class="result climb-to-rate"></td><td class="result climb-to-gradient"></td></tr>
+            <tr><td>Takeoff · UP</td><td class="result climb-up-speed"></td><td class="result climb-up-rate"></td><td class="result climb-up-gradient"></td></tr>
+            <tr><td>Cruise · UP</td><td class="result climb-cruise-speed"></td><td class="result climb-cruise-rate"></td><td class="result climb-cruise-gradient"></td></tr>
+            <tr><td>OEI · UP</td><td class="result climb-oei-speed"></td><td class="result climb-oei-rate"></td><td class="result climb-oei-gradient"></td></tr>
+            <tr><td>Go-around · LDG</td><td class="result climb-go-around-speed"></td><td class="result climb-go-around-rate"></td><td class="result climb-go-around-gradient"></td></tr>
+          </table>
+
+        </div>
+
+        <dialog id="tools-drawer" class="summary-panel tools-drawer" aria-labelledby="tools-drawer-title">
+          <div class="tools-drawer-header">
+            <h2 id="tools-drawer-title">General Tools</h2>
+            <button id="tools-close" class="tools-close" type="button" aria-label="Close General Tools">×</button>
+          </div>
+          <table class="main tools-table" id="tools">
+            <colgroup><col><col><col><col></colgroup>
+            <tr class="header"><td colspan="4">Engine Fuel Flow · US gal/h</td></tr>
+            <tr><td>Power (%)</td><td><input type="text" class="ff-power update" value="75" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Engine power setting in percent"></td><td>Per engine</td><td><span class="ff-per-engine"></span></td></tr>
+            <tr><td>Total</td><td><span class="ff-total"></span></td><td colspan="2"></td></tr>
+            <tr class="header"><td colspan="4">Wind Components</td></tr>
+            <tr><td>Wind</td><td><div class="wind"><input type="text" class="dir wc-dir update" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Wind direction in degrees">@<input type="text" class="vel wc-vel update" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Wind speed in knots"></div></td><td>Rwy</td><td><input type="text" class="wc-rwy update" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Runway number"></td></tr>
+            <tr><td>Xwind.</td><td><span class="wc-cross"></span></td><td>Hwind.</td><td><span class="wc-head"></span></td></tr>
+            <tr class="header"><td colspan="4">FPM to ft/NM</td></tr>
+            <tr><td>GS</td><td><input type="text" class="fpm-gs update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for climb-gradient conversion"></td><td>FPM</td><td><input type="text" class="fpm-rate update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Vertical speed in feet per minute"></td></tr>
+            <tr><td>ft/NM</td><td><input type="text" class="fpm-gradient update" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Climb gradient in feet per nautical mile"></td><td colspan="2"></td></tr>
+            <tr class="header"><td colspan="4">Descent (slope = <input type="text" class="d-slope update" value="3" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Descent slope in degrees">°)</td></tr>
+            <tr><td>GS</td><td><input type="text" class="d-gs update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for descent calculation"></td><td>↓Rate</td><td><span class="d-rate"></span></td></tr>
+            <tr><td>ΔH</td><td><input type="text" class="d-alt update" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Descent height in feet"></td><td>Dist.</td><td><span class="d-dist"></span></td></tr>
+            <tr class="header"><td colspan="4">Holding Pattern</td></tr>
+            <tr><td>Out/In</td><td><div class="holding"><input type="text" class="h-out update" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding outbound course in degrees">/<input type="text" class="h-in update" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding inbound course in degrees"></div></td><td>Hdg</td><td><input type="text" class="h-hdg update" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Aircraft heading in degrees for holding entry"></td></tr>
+            <tr><td colspan="2"><label><input type="checkbox" class="h-left update"><span>Left turns</span></label></td><td>Type</td><td><span class="h-type"></span></td></tr>
+            <tr class="header"><td colspan="4">E6B</td></tr>
+            <tr><td>Course</td><td><input type="text" class="tc update" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="True course in degrees"></td><td>TAS</td><td><input type="text" class="tas update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="True airspeed in knots"></td></tr>
+            <tr><td>Wind</td><td><div class="wind"><input type="text" class="dir windir update" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="E6B wind direction in degrees">@<input type="text" class="vel winvel update" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="E6B wind speed in knots"></div></td><td>E−/W+</td><td><input type="text" class="vr update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Magnetic variation correction; east negative and west positive"></td></tr>
+            <tr><td>Hdg</td><td><span class="hdg"></span></td><td>GS</td><td><span class="gs"></span></td></tr>
+            <tr class="header"><td colspan="4">Std. Rate Turn</td></tr>
+            <tr><td>TAS</td><td><input type="text" class="t-tas update" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="True airspeed in knots for standard-rate turn"></td><td>Bank</td><td><span class="t-bank"></span></td></tr>
+            <tr class="header"><td colspan="4">Unit Conversions</td></tr>
+            <tr><td>°C</td><td><input type="text" class="c-cel update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Celsius"></td><td>°F</td><td><input type="text" class="c-fah update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Fahrenheit"></td></tr>
+            <tr><td>NM/kts</td><td><input type="text" class="c-nm update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in nautical miles or speed in knots"></td><td>SM/mph</td><td><input type="text" class="c-sm update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in statute miles or speed in miles per hour"></td></tr>
+            <tr><td>feet</td><td><input type="text" class="c-ft update" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in feet"></td><td>m</td><td><input type="text" class="c-m update" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in metres"></td></tr>
+            <tr><td>lb</td><td><input type="text" class="c-lb update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in pounds"></td><td>kg</td><td><input type="text" class="c-kg update" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in kilograms"></td></tr>
+          </table>
+        </dialog>
+      </div>
+
+      <div class="buttons"><button id="save" type="button">Save</button></div>
+      <div class="row"><div id="url"></div></div>
+
+      <section class="card notes" aria-labelledby="basis-title">
+        <h2 id="basis-title">Basis and limitations</h2>
+        <ul>
+          <li><strong>Loading.</strong> Weight and CG use the AFM station arms, fuel and baggage limits, and the selected modifications. CG is checked with fuel loaded and empty and, when de-icing is installed, with fluid loaded and empty. De-icing fluid is limited to 35.2 lb from the published 3.9 US gal capacity and AFM density. Installed equipment, including weather radar and the dry TKS system, must already be included in the aircraft-specific empty weight and moment.</li>
+          <li><strong>Field performance.</strong> Takeoff and landing use the displayed AFM flap configurations on a dry, paved, level runway. Published headwind and tailwind corrections are applied; no grass, wet-runway, or runway-slope adjustment is calculated. The fuel-flow tool reports both the AFM per-engine value and the two-engine total.</li>
+          <li><strong>Climb performance.</strong> Takeoff and cruise climb assume both engines at 95% power. OEI assumes the remaining engine at 95%, the failed engine feathered and secured, Flaps UP, gear retracted, and no more than 5° bank. Go-around uses both engines at MAX, Flaps LDG, gear extended, and V<sub>REF</sub>. An OEI gradient below 3.3% is highlighted because the AFM does not recommend a continued takeoff.</li>
+          <li><strong>Coverage.</strong> Published OAT and ISA values are interpolation anchors. In accordance with AFM Section 5.2, weights from 3,527 through 3,968 lb use the 3,968 lb performance data and temperatures below the lowest available row value use that lowest value. Hatched cells and conditions above the published table bounds remain blank.</li>
+          <li><strong>Use.</strong> This is a planning aid, not approved flight-manual data. Verify the aircraft configuration, loading, result, and limitations against the current AFM for the specific aircraft.</li>
+        </ul>
+      </section>
+      <p class="source">Source: DA 62 AFM, Doc. 11.01.05-E, Rev. 2, 28-Aug-2025 · © 2023 Ted Yin &lt;tederminant@gmail.com&gt; · <a href="LICENSE.txt">MIT License</a> · <a href="THIRD_PARTY_NOTICES.txt">Third-party notices</a></p>
+    </main>
+    <script src="assets/vendor/json-url/json-url-single.js"></script>
+    <script src="assets/js/performance-common.js"></script>
+    <script src="assets/js/flight-tools.js"></script>
+    <script src="assets/js/da62-data.js"></script>
+    <script src="assets/js/da62.js"></script>
+    <script src="assets/js/pwa.js"></script>
+  </body>
+</html>

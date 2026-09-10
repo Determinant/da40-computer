@@ -16,8 +16,12 @@
   },
   "files": [
     "src/globals.d.ts",
+    "src/performance-common.ts",
+    "src/flight-tools.ts",
     "src/chart-trace.ts",
     "src/da40.ts",
+    "src/da62-data.ts",
+    "src/da62.ts",
     "src/pwa.ts"
   ]
 }

@@ -194,8 +194,9 @@ namespace ChartTrace {
         canvas: Element,
         strokeWidth: string,
     ): Elements => {
+        const ownerDocument = svg.ownerDocument ?? document;
         const createPath = (attributes: Record<string, string>) => {
-            const path = document.createElementNS(svg.namespaceURI, 'path') as SVGPathElement;
+            const path = ownerDocument.createElementNS(svg.namespaceURI, 'path') as SVGPathElement;
             setSvgAttributes(path, { 'pointer-events': 'none', ...attributes });
             canvas.appendChild(path);
             return path;

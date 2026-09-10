@@ -6,568 +6,31 @@
     <title>DA40 Computer</title>
     <meta name="description" content="DA40 weight, performance, navigation, and flight-planning calculator.">
     <link rel="manifest" href="manifest.webmanifest">
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#172033">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="DA40">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon-180.png">
-    <style>
-@font-face {
-  font-family: "B612";
-  src: url("./assets/fonts/B612-Regular.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-html {
-  width: 100%;
-  height: 100%;
-  font-size: 62.5%;
-}
-body {
-  font-family: "B612", sans-serif;
-  font-size: 1.2rem;
-}
-table.main {
-  margin-bottom: 10px;
-  width: 100%;
-  border: 2px solid black;
-  font-family: "B612", sans-serif;
-  font-size: 13px;
-  letter-spacing: normal;
-  border-collapse: collapse;
-}
-object.chart {
-  width: 600px;
-  max-width: 100%;
-}
-.title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  max-width: 800px;
-  margin: 12px auto 24px;
-  gap: 16px;
-}
-.container {
-  margin: auto;
-}
-table.main td {
-  padding: 2px 5px;
-  text-align: center;
-  border: 1px solid;
-}
-
-.row {
-  text-align: center;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: 100%;
-  max-width: 800px;
-  margin-inline: auto;
-  gap: 8px;
-  align-items: start;
-}
-
-h1 {
-  font-family: "B612", sans-serif;
-  margin: 0;
-  font-size: clamp(22px, 4vw, 24px);
-  line-height: 1.2;
-}
-
-.summary-grid > .summary-panel {
-  min-width: 0;
-}
-.checkbox-options {
-  text-align: left;
-}
-
-table.main tr.header td,
-table.main td.header {
-  border: 1px solid black;
-  color: white;
-  background-color: #666;
-}
-
-table.main tr.header0 td,
-table.main td.header0 {
-  border: 1px solid black;
-  color: white;
-  background-color: black;
-}
-
-table.main td input {
-  font-family: "B612", sans-serif;
-  min-width: 1rem;
-}
-table.main input[type="text"] {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  font-size: inherit;
-  line-height: inherit;
-  text-align: center;
-}
-table.main input[type="text"].update {
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(0, 0, 0, 0.05),
-    rgba(0, 0, 0, 0.05) 2px,
-    rgba(0, 0, 0, 0.1) 2px,
-    rgba(0, 0, 0, 0.1) 4px
-      );
-}
-table.main input[type="text"]:focus-visible,
-table.main input[type="checkbox"]:focus-visible {
-  outline: 2px solid #005fcc;
-  outline-offset: 1px;
-}
-label {
-  cursor: pointer;
-}
-.gray {
-  background-color: #ccc;
-}
-button {
-  font-family: "B612", sans-serif;
-  font-size: 18px;
-  background-color: #fff;
-  color: #000;
-  border: 2px solid;
-  height: 30px;
-  width: 100px;
-  cursor: pointer;
-}
-button:focus-visible {
-  outline: 2px solid #005fcc;
-  outline-offset: 2px;
-}
-.tools-toggle {
-  flex: 0 0 auto;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  touch-action: manipulation;
-}
-.tools-drawer {
-  position: fixed;
-  inset: 0 0 0 auto;
-  box-sizing: border-box;
-  width: min(480px, calc(100vw - 12px));
-  max-width: none;
-  height: 100vh;
-  height: 100dvh;
-  max-height: 100vh;
-  max-height: 100dvh;
-  margin: 0 0 0 auto;
-  padding: 0 12px max(12px, env(safe-area-inset-bottom));
-  border: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  color: #000;
-  background: #fff;
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.3);
-}
-.tools-drawer[open] {
-  display: block;
-  animation: tools-drawer-in 160ms ease-out;
-}
-.tools-drawer::backdrop {
-  background: rgba(0, 0, 0, 0.38);
-}
-.tools-drawer-header {
-  position: sticky;
-  z-index: 1;
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 -12px 10px;
-  padding: max(10px, env(safe-area-inset-top)) 12px 10px;
-  color: #fff;
-  background: #000;
-}
-.tools-drawer-header h2 {
-  margin: 0;
-  font-size: 18px;
-}
-.tools-close {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border-color: #fff;
-  color: #fff;
-  background: #000;
-  touch-action: manipulation;
-}
-#tools {
-  margin-bottom: 0;
-  table-layout: fixed;
-}
-#tools col:nth-child(odd) {
-  width: 22%;
-}
-#tools col:nth-child(even) {
-  width: 28%;
-}
-@keyframes tools-drawer-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-.buttons {
-  margin-top: 10px;
-  text-align: center;
-}
-.copyright,
-#url {
-  margin-top: 20px;
-  font-size: 12px;
-  font-family: "B612", sans-serif;
-}
-
-.copyright {
-  text-align: right;
-}
-
-#url {
-  font-size: 12px;
-  margin: 10px auto;
-  color: red;
-  text-align: left;
-}
-#url > textarea {
-  box-sizing: border-box;
-  font-family: "B612", sans-serif;
-  font-size: 12px;
-  display: block;
-  height: 100px;
-  width: 100%;
-  resize: vertical;
-}
-.pwa-status {
-  position: fixed;
-  z-index: 1000;
-  right: 12px;
-  bottom: 12px;
-  max-width: min(360px, calc(100vw - 48px));
-  padding: 8px 12px;
-  border: 1px solid #4b5563;
-  border-radius: 6px;
-  color: #fff;
-  background: #1f2937;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-}
-.pwa-status[hidden] {
-  display: none;
-}
-.ok {
-  background-color: #689d6a !important;
-}
-td.mass-wrapper, td.cg-wrapper {
-  background-color: #cc241d;
-}
-#weights {
-  table-layout: fixed;
-}
-#weights col:first-child {
-  width: 42%;
-}
-#weights col:nth-child(2) {
-  width: 28%;
-}
-#weights col:last-child {
-  width: 30%;
-}
-#weights td:first-child,
-#weights td:nth-child(2),
-#weights td:nth-child(3) {
-  min-width: 0;
-}
-#weights td:first-child {
-  white-space: normal;
-}
-.env-label {
-  width: 130px;
-}
-.env-value {
-  width: 40px;
-}
-#outputs {
-  table-layout: fixed;
-}
-#outputs col:first-child {
-  width: 60%;
-}
-#outputs col:last-child {
-  width: 40%;
-}
-#outputs td:first-child {
-  min-width: 0;
-  white-space: normal;
-}
-.outputs-value {
-  width: auto;
-}
-table.main tr td:first-child {
-  text-align: right;
-}
-table.main tr.header td,
-table.main tr.header0 td {
-  text-align: center;
-}
-input[type="checkbox"] {
-  margin: 2px;
-}
-.wind {
-  min-width: 50px;
-  display: flex;
-}
-.wind .dir {
-  flex: 1.5;
-}
-.wind .vel {
-  flex: 1;
-}
-.holding {
-  min-width: 50px;
-  display: flex;
-}
-.holding .h-out {
-  flex: 1;
-}
-.holding .h-in {
-  flex: 1;
-}
-table.main input[type="text"].d-slope {
-  display: inline-block;
-  width: 20px;
-  min-width: 20px;
-}
-#tools td.ep-mixture {
-  white-space: nowrap;
-  text-align: center;
-}
-#tools td.ep-result {
-  white-space: nowrap;
-  text-align: center;
-}
-
-@media (max-width: 800px) {
-  table.main {
-    font-size: 16px;
-  }
-}
-
-@media (max-width: 600px) {
-  .summary-grid {
-    display: block;
-  }
-  #tools td.ep-mixture,
-  #tools td.ep-result {
-    white-space: normal;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tools-drawer[open] {
-    animation: none;
-  }
-}
-
-@page {
-  margin: 8mm;
-}
-
-@media print {
-  html,
-  body {
-    width: auto;
-    height: auto;
-  }
-
-  body {
-    margin: 0;
-    color: #000;
-    background: #fff;
-    font-size: 8pt;
-    line-height: 1.08;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .container {
-    width: 100%;
-    max-width: none;
-    margin: 0;
-  }
-
-  .title {
-    margin: 0 0 2mm;
-    justify-content: center;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: 14pt;
-  }
-
-  .summary-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr) minmax(0, 1.28fr);
-    width: 100%;
-    max-width: none;
-    gap: 2mm;
-    align-items: start;
-    text-align: initial;
-    break-inside: avoid-page;
-    page-break-inside: avoid;
-  }
-
-  .summary-grid > .summary-panel {
-    display: block;
-    min-width: 0;
-  }
-
-  table.main {
-    width: 100%;
-    margin: 0 0 1.5mm;
-    border-width: 0.35mm;
-    font-size: 7.5pt;
-    line-height: 1.05;
-    break-inside: avoid-page;
-    page-break-inside: avoid;
-  }
-
-  table.main tr,
-  table.main td {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  table.main td {
-    padding: 0.35mm 0.8mm;
-    border-width: 0.2mm;
-  }
-
-  table.main input[type="text"].update {
-    min-height: 0.9em;
-    background: #f2f2f2 !important;
-  }
-
-  table.main tr.header td,
-  table.main td.header,
-  table.main tr.header0 td,
-  table.main td.header0 {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  #weights td:first-child,
-  #weights td:nth-child(2),
-  #weights td:nth-child(3),
-  #outputs td:first-child {
-    min-width: 0;
-  }
-
-  .env-label,
-  .env-value,
-  .outputs-value {
-    width: auto;
-  }
-
-  .wind,
-  .holding {
-    min-width: 0;
-  }
-
-  input[type="checkbox"] {
-    margin: 0 0.4mm 0 0;
-  }
-
-  .buttons,
-  #url,
-  .pwa-status,
-  .tools-toggle,
-  .tools-close {
-    display: none !important;
-  }
-
-  .tools-drawer {
-    display: block !important;
-    position: static;
-    width: auto;
-    height: auto;
-    max-height: none;
-    margin: 0;
-    padding: 0;
-    overflow: visible;
-    box-shadow: none;
-  }
-
-  .tools-drawer-header {
-    position: static;
-    margin: 0;
-    padding: 0.7mm;
-  }
-
-  .tools-drawer-header h2 {
-    font-size: 7.5pt;
-  }
-
-  .charts {
-    break-before: page;
-    page-break-before: always;
-  }
-
-  .chart-row {
-    margin: 0 0 2mm;
-    line-height: 0;
-    break-inside: avoid-page;
-    page-break-inside: avoid;
-  }
-
-  .chart-row:nth-child(3) {
-    break-before: page;
-    page-break-before: always;
-  }
-
-  object.chart {
-    display: block;
-    width: 172mm;
-    max-width: 100%;
-    height: auto;
-    margin: 0 auto;
-  }
-
-  .copyright {
-    margin-top: 1mm;
-    font-size: 7pt;
-  }
-}
-
-  </style>
+    <link rel="stylesheet" href="assets/calculator.css">
   </head>
   <body>
     <div id="pwa-status" class="pwa-status" role="status" aria-live="polite" hidden></div>
     <div class="container">
       <div class="row title">
-        <h1>DA40 Computer</h1>
-        <button id="tools-toggle" class="tools-toggle" type="button" aria-haspopup="dialog" aria-controls="tools-drawer" aria-expanded="false">Tools</button>
+        <div>
+          <h1>DA40 Computer</h1>
+          <p class="subtitle">Weight, balance, performance, and flight planning</p>
+        </div>
+        <div class="title-actions">
+          <a class="aircraft-link" href="da62.html">DA62 computer</a>
+          <button id="tools-toggle" class="tools-toggle" type="button" aria-haspopup="dialog" aria-controls="tools-drawer" aria-expanded="false">Tools</button>
+        </div>
       </div>
       <div class="row summary-grid">
         <div class="summary-panel">
-          <table class="main" id="weights">
+          <table class="main weights-table" id="weights">
             <colgroup>
               <col>
               <col>
@@ -639,7 +102,11 @@ table.main input[type="text"].d-slope {
               <td><span class="total-moment"></span></td>
             </tr>
           </table>
-          <table class="main" id="env">
+          <table class="main environment-table" id="env">
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
             <tr class="header0">
               <td colspan="2">Environment</td>
             </tr>
@@ -651,11 +118,11 @@ table.main input[type="text"].d-slope {
               <td class="env-value"><input type="text" class="oat update max3" value="15" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Outside air temperature in degrees Celsius"></td>
             </tr>
             <tr>
-              <td>QNH (inhg)</td>
+              <td>QNH (inHg)</td>
               <td><input type="text" class="qnh update max6" value="29.92" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="QNH in inches of mercury"></td>
             </tr>
             <tr>
-              <td>Headwind (kts)</td>
+              <td>Headwind (kt)</td>
               <td><input type="text" class="headwind update max3" value="0" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Headwind in knots"></td>
             </tr>
             <tr>
@@ -680,67 +147,121 @@ table.main input[type="text"].d-slope {
           </table>
         </div>
         <div class="summary-panel">
-          <table class="main" id="outputs">
+          <div id="summary-outputs">
+            <table class="main aircraft-data-table da40-aircraft-data" id="aircraft-data">
             <colgroup>
+              <col>
+              <col>
               <col>
               <col>
             </colgroup>
             <tr class="header0">
-              <td colspan="2">Aircraft Data</td>
+              <td colspan="4">Aircraft Data</td>
             </tr>
             <tr class="header">
-              <td colspan="2"></td>
+              <td colspan="4"></td>
             </tr>
             <tr>
-              <td>Weight (lb)</td>
+              <td colspan="3">Weight (lb)</td>
               <td class="outputs-value mass-wrapper"><span class="total-mass"></span></td>
             </tr>
             <tr>
-              <td>CG (inch)</td>
+              <td colspan="3">CG (in)</td>
               <td class="cg-wrapper"><span class="cg"></span></td>
             </tr>
             <tr>
-              <td>Climb [T/O,UP] (kts)</td>
-              <td><span class="vy"></span></td>
-            </tr>
-            <tr>
-              <td>Vg (kts)</td>
+              <td colspan="3">Vg (KIAS)</td>
               <td><span class="vg"></span></td>
             </tr>
             <tr>
-              <td>Vapp [LDG,T/O,UP] (kts)</td>
+              <td colspan="3">Vapp [LDG,T/O,UP] (KIAS)</td>
               <td>
                 <span class="vapp"></span>
               </td>
             </tr>
             <tr>
-              <td>Va (kts)</td>
+              <td colspan="3">Va (KIAS)</td>
               <td><span class="va"></span></td>
             </tr>
-            <tr>
-              <td>T/O Dist. (ft)</td>
-              <td><span class="takeoff"></span></td>
+            </table>
+            <table class="main performance-table field-performance-table" id="field-performance">
+            <colgroup>
+              <col>
+              <col>
+              <col>
+              <col>
+            </colgroup>
+            <tr class="header0">
+              <td colspan="4">Field Performance</td>
+            </tr>
+            <tr class="section-title">
+              <td colspan="4">Takeoff Distance · ft</td>
+            </tr>
+            <tr class="header">
+              <td>Flaps</td>
+              <td>V<sub>LOF</sub> / climb (KIAS)</td>
+              <td>Ground Roll</td>
+              <td>Over <span class="takeoff-obstacle"></span> ft</td>
             </tr>
             <tr>
-              <td>LDG Dist. (ft)</td>
-              <td><span class="landing"></span></td>
+              <td>T/O</td>
+              <td class="result"><span class="takeoff-speed"></span></td>
+              <td class="result"><span class="takeoff-ground"></span></td>
+              <td class="result"><span class="takeoff"></span></td>
+            </tr>
+            <tr class="section-title">
+              <td colspan="4">Landing Distance · ft</td>
+            </tr>
+            <tr class="header">
+              <td>Flaps</td>
+              <td>V<sub>APP</sub> (KIAS)</td>
+              <td>Ground Roll</td>
+              <td>Over <span class="landing-obstacle"></span> ft</td>
             </tr>
             <tr>
-              <td>Climb [T/O,UP] (fpm)</td>
-              <td><span class="takeoff-climb"></span></td>
+              <td>LDG</td>
+              <td class="result"><span class="landing-ldg-speed"></span></td>
+              <td class="result"><span class="landing-ldg-ground"></span></td>
+              <td class="result"><span class="landing-ldg"></span></td>
+            </tr>
+            </table>
+            <table class="main performance-table climb-performance-table" id="climb-performance">
+            <colgroup>
+              <col>
+              <col>
+              <col>
+              <col>
+            </colgroup>
+            <tr class="header0">
+              <td colspan="4">Climb Performance</td>
+            </tr>
+            <tr class="header">
+              <td>Configuration</td>
+              <td>KIAS</td>
+              <td>ft/min</td>
+              <td>ft/NM</td>
             </tr>
             <tr>
-              <td>Climb [T/O,UP] (ft/NM)</td>
-              <td><span class="takeoff-climb-gradient"></span></td>
+              <td>Takeoff · T/O</td>
+              <td><span class="climb-takeoff-speed"></span></td>
+              <td><span class="climb-takeoff-rate"></span></td>
+              <td><span class="climb-takeoff-gradient"></span></td>
             </tr>
-          </table>
+            <tr>
+              <td>Cruise · UP</td>
+              <td><span class="climb-cruise-speed"></span></td>
+              <td><span class="climb-cruise-rate"></span></td>
+              <td><span class="climb-cruise-gradient"></span></td>
+            </tr>
+            </table>
+          </div>
         </div>
         <dialog id="tools-drawer" class="summary-panel tools-drawer" aria-labelledby="tools-drawer-title">
           <div class="tools-drawer-header">
             <h2 id="tools-drawer-title">General Tools</h2>
             <button id="tools-close" class="tools-close" type="button" aria-label="Close General Tools">×</button>
           </div>
-          <table class="main" id="tools">
+          <table class="main tools-table" id="tools">
             <colgroup>
               <col>
               <col>
@@ -903,15 +424,21 @@ table.main input[type="text"].d-slope {
           <object class="chart" data="assets/charts/cruise-climb-chart.svg" type="image/svg+xml" id="cruise-climb"></object>
         </div>
       </div>
-      <div class="row">
-        <div class="copyright">
-          © 2023 Ted Yin &lt;tederminant@gmail.com&gt;.
-          <a href="LICENSE.txt">MIT License</a>.
-          <a href="THIRD_PARTY_NOTICES.txt">Third-party notices</a>.
-        </div>
-      </div>
+      <section class="card notes" aria-labelledby="basis-title">
+        <h2 id="basis-title">Basis and limitations</h2>
+        <ul>
+          <li><strong>Loading.</strong> Weight and CG use the AFM station arms, fuel and baggage limits, and the selected MÄM and tank configuration. CG is checked both at zero fuel and with the entered fuel.</li>
+          <li><strong>Field performance.</strong> Takeoff uses Flaps T/O and landing uses Flaps LDG on a level asphalt runway. The separate AFM Flaps UP landing chart is not implemented. No grass, wet-runway, runway-slope, or tailwind adjustment is calculated.</li>
+          <li><strong>Climb performance.</strong> Takeoff climb uses Flaps T/O and cruise climb uses Flaps UP, with the AFM power settings and mass-dependent speeds shown in the results.</li>
+          <li><strong>Coverage.</strong> Results are read from digitized AFM nomographs. Unsupported conditions return a blank result; favorable mass or headwind corrections beyond a charted range are not credited instead of being extrapolated.</li>
+          <li><strong>Use.</strong> This is a planning aid, not approved flight-manual data. Verify the aircraft configuration, loading, result, and limitations against the current AFM for the specific aircraft.</li>
+        </ul>
+      </section>
+      <p class="source">Source: DA 40 AFM, Doc. 6.01.01-E, Rev. 10, 18-Sep-2023 · © 2023 Ted Yin &lt;tederminant@gmail.com&gt; · <a href="LICENSE.txt">MIT License</a> · <a href="THIRD_PARTY_NOTICES.txt">Third-party notices</a></p>
     </div>
-    <script src="assets/vendor/json-url/json-url.js"></script>
+    <script src="assets/vendor/json-url/json-url-single.js"></script>
+    <script src="assets/js/performance-common.js"></script>
+    <script src="assets/js/flight-tools.js"></script>
     <script src="assets/js/chart-trace.js"></script>
     <script src="assets/js/da40.js"></script>
     <script src="assets/js/pwa.js"></script>

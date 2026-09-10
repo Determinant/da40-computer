@@ -1,10 +1,23 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
 
+const digest = value => createHash('sha256')
+  .update(JSON.stringify(value))
+  .digest('hex');
+
 const chartTraceSource = await readFile(
   new URL('../dist/assets/js/chart-trace.js', import.meta.url),
+  'utf8',
+);
+const commonSource = await readFile(
+  new URL('../dist/assets/js/performance-common.js', import.meta.url),
+  'utf8',
+);
+const flightToolsSource = await readFile(
+  new URL('../dist/assets/js/flight-tools.js', import.meta.url),
   'utf8',
 );
 const da40Source = await readFile(
@@ -106,6 +119,7 @@ const geometryFromPathData = (pathData) => {
   }
   const totalLength = lengths.at(-1);
   return {
+    pathData,
     getTotalLength() {
       return totalLength;
     },
@@ -169,6 +183,9 @@ const makeChartDocument = async (relativePath, svgId, canvasId) => {
     getElementById(id) {
       return elements.get(id) ?? null;
     },
+    querySelector(selector) {
+      return elements.get(selector.replace(/^#/, '')) ?? null;
+    },
   };
 };
 
@@ -195,22 +212,59 @@ const chartDocuments = {
   ),
 };
 
+const makeInlineChartHost = chartDocument => {
+  const shadowRoot = {
+    appendChild() {},
+    querySelector(selector) {
+      return chartDocument.getElementById(selector.replace(/^#/, ''));
+    },
+  };
+  const template = {
+    content: { cloneNode() { return {}; } },
+    remove() {},
+  };
+  return {
+    shadowRoot: null,
+    attachShadow() {
+      this.shadowRoot = shadowRoot;
+      return shadowRoot;
+    },
+    querySelector(selector) {
+      return selector === ':scope > template' ? template : null;
+    },
+  };
+};
+const inlineChartHosts = {
+  'takeoff-inline': makeInlineChartHost(chartDocuments.takeoff),
+  'landing-inline': makeInlineChartHost(chartDocuments.landing),
+  'takeoff-climb-inline': makeInlineChartHost(chartDocuments['takeoff-climb']),
+  'cruise-climb-inline': makeInlineChartHost(chartDocuments['cruise-climb']),
+};
+
 const inertElement = {
   addEventListener() {},
   classList: { add() {}, contains() { return false; }, remove() {}, toggle() {} },
   innerText: '',
+  parentNode: {
+    classList: { add() {}, contains() { return false; }, remove() {}, toggle() {} },
+  },
   querySelector() { return inertElement; },
+  querySelectorAll() { return []; },
   setAttribute() {},
 };
+const loadHandlers = [];
 const context = vm.createContext({
-  console,
+  console: { ...console, error() {} },
   document: {
+    cookie: '',
     createElementNS() {
       return makeTracePath();
     },
     getElementById(id) {
       const contentDocument = chartDocuments[id];
-      return contentDocument ? { contentDocument } : inertElement;
+      return contentDocument
+        ? { contentDocument }
+        : inlineChartHosts[id] ?? inertElement;
     },
     querySelectorAll() { return []; },
   },
@@ -221,16 +275,38 @@ const context = vm.createContext({
   URL,
   URLSearchParams,
   window: {
-    addEventListener() {},
+    addEventListener(eventName, handler) {
+      if (eventName === 'load') {
+        loadHandlers.push(handler);
+      }
+    },
     location: { href: 'http://localhost/da40.html', search: '' },
   },
 });
 vm.runInContext(chartTraceSource, context);
+vm.runInContext(commonSource, context);
+vm.runInContext(flightToolsSource, context);
 vm.runInContext(da40Source, context);
 vm.runInContext(`
   globalThis.takeoffUnclampedCalc = createChartCalculator({
     ...takeoffChart,
     obst: { ...takeoffChart.obst, conservativeClampBelow: undefined },
+  });
+  globalThis.takeoffInlineCalc = createChartCalculator({
+    ...takeoffChart,
+    doc: 'takeoff-inline',
+  });
+  globalThis.landingInlineCalc = createChartCalculator({
+    ...landingChart,
+    doc: 'landing-inline',
+  });
+  globalThis.takeoffClimbInlineCalc = createChartCalculator({
+    ...takeoffClimbChart,
+    doc: 'takeoff-climb-inline',
+  });
+  globalThis.cruiseClimbInlineCalc = createChartCalculator({
+    ...cruiseClimbChart,
+    doc: 'cruise-climb-inline',
   });
   takeoffCalc = createChartCalculator(takeoffChart);
   landingCalc = createChartCalculator(landingChart);
@@ -261,9 +337,17 @@ vm.runInContext(`
 const chartStructure = JSON.parse(vm.runInContext(`JSON.stringify(
   [takeoffChart, landingChart, takeoffClimbChart, cruiseClimbChart].map((chart) => ({
     doc: chart.doc,
+    flipY: !!chart.flipY,
+    lineWidth: chart.lineWidth ?? null,
     steps: ['press', 'mass', 'wind', 'obst']
       .filter((name) => chart[name])
-      .map((name) => ({ name, curves: chart[name].curves })),
+      .map((name) => ({
+        name,
+        x: chart[name].x,
+        y: chart[name].y,
+        curves: chart[name].curves,
+        marks: chart[name].marks ?? null,
+      })),
   })),
 )`, context));
 
@@ -276,6 +360,77 @@ const assertNear = (actual, expected, tolerance, label) => {
     `${label}: expected ${actual} to be within ${tolerance} of ${expected}`,
   );
 };
+
+test('original chart initialization survives an optional side-tool failure', () => {
+  vm.runInContext(`
+    takeoffCalc = undefined;
+    landingCalc = undefined;
+    takeoffClimbCalc = undefined;
+    cruiseClimbCalc = undefined;
+    globalThis.savedToolsInitialize = FlightTools.initialize;
+    FlightTools.initialize = () => { throw new Error('simulated tool failure'); };
+  `, context);
+  try {
+    assert.equal(loadHandlers.length, 1);
+    loadHandlers[0]();
+  } finally {
+    vm.runInContext('FlightTools.initialize = globalThis.savedToolsInitialize;', context);
+  }
+  assert.deepEqual(
+    JSON.parse(vm.runInContext(`JSON.stringify([
+      typeof takeoffCalc,
+      typeof landingCalc,
+      typeof takeoffClimbCalc,
+      typeof cruiseClimbCalc,
+    ])`, context)),
+    ['function', 'function', 'function', 'function'],
+  );
+});
+
+test('inline shadow-root charts preserve representative original SVG calculations', () => {
+  const cases = [
+    ['takeoff', [2000, 15, 2205, 10, 0]],
+    ['takeoff', [2000, 15, 2205, 10, 50]],
+    ['landing', [2000, 15, 2205, 10, 0]],
+    ['landing', [2000, 15, 2205, 10, 50]],
+    ['takeoffClimb', [0, 15, 2205]],
+    ['takeoffClimb', [6000, 0, 2400]],
+    ['cruiseClimb', [0, 15, 2205]],
+    ['cruiseClimb', [6000, 0, 2400]],
+  ];
+  for (const [name, inputs] of cases) {
+    assert.equal(
+      calculate(`${name}Inline`, ...inputs),
+      calculate(name, ...inputs),
+      `${name}: ${inputs.join(', ')}`,
+    );
+  }
+});
+
+test('configured AFM nomograph axes and curves retain their exact digitized geometry', () => {
+  const geometry = chartStructure.map(chart => ({
+    ...chart,
+    steps: chart.steps.map(step => ({
+      ...step,
+      paths: [step.x, step.y, ...step.curves].map(id => {
+        const path = chartDocuments[chart.doc].elements.get(id);
+        assert.ok(path, `${chart.doc}: missing configured path ${id}`);
+        return [id, tokenizePath(path.pathData)];
+      }),
+    })),
+  }));
+  assert.equal(
+    digest(geometry),
+    '08bbd7211f1f9280155ef3a85404ea3ac6c523350a297987fd2fe538c001a741',
+  );
+});
+
+test('distance and climb outputs round in the conservative direction', () => {
+  assert.equal(vm.runInContext('takeoffChart.output(0.10001)', context), 755);
+  assert.equal(vm.runInContext('landingChart.output(0.10001)', context), 755);
+  assert.equal(vm.runInContext('takeoffClimbChart.output(0.2501)', context), 1199);
+  assert.equal(vm.runInContext('cruiseClimbChart.output(0.2501)', context), 1199);
+});
 
 const assertNondecreasing = (values, label) => {
   for (let index = 1; index < values.length; index++) {
@@ -375,21 +530,79 @@ test('take-off obstacle curves stay ordered and never intersect', () => {
   }
 });
 
-test('AFM take-off worked example is reproduced by both obstacle endpoints', () => {
-  assertNear(calculate('takeoff', 2000, 15, 2205, 10, 0), 558, 25, 'ground roll');
-  assertNear(calculate('takeoff', 2000, 15, 2205, 10, 50), 985, 35, '50 ft distance');
+test('published and worked AFM nomograph references are reproduced', () => {
+  const references = [
+    ['5.3.6 worked example, ground roll', 'takeoff', [2000, 15, 2205, 10, 0], 558, 25],
+    ['5.3.6 worked example, 50 ft', 'takeoff', [2000, 15, 2205, 10, 50], 985, 35],
+    ['5.3.7 worked example', 'takeoffClimb', [0, 15, 2205], 1160, 25],
+    ['5.3.8 worked example', 'cruiseClimb', [0, 15, 2205], 1050, 25],
+    ['5.3.10 worked example, ground roll', 'landing', [2000, 15, 2205, 10, 0], 624, 25],
+    // The embedded vector trace reads about 13 m conservatively above the
+    // printed worked-example result of 405 m.
+    ['5.3.10 worked example, 50 ft', 'landing', [2000, 15, 2205, 10, 50], 1329, 50],
+    // Page 5-19's 352 m note conflicts with the page 5-21 nomograph, which
+    // reads approximately 285 m at the same MSL/ISA and 1150 kg condition.
+    // Preserve the plotted value because this calculator explicitly traces
+    // the nomograph; retain the non-conflicting 638 m note immediately below.
+    ['5.3.10 MSL/ISA nomograph, ground roll', 'landing', [0, 15, 2535, 0, 0], 935, 40],
+    ['5.3.10 MSL/ISA benchmark, 50 ft', 'landing', [0, 15, 2535, 0, 50], 2093, 60],
+  ];
+  for (const [label, chart, inputs, expected, tolerance] of references) {
+    assertNear(calculate(chart, ...inputs), expected, tolerance, label);
+  }
 });
 
-test('AFM landing worked example is reproduced by both obstacle endpoints', () => {
-  assertNear(calculate('landing', 2000, 15, 2205, 10, 0), 624, 25, 'ground roll');
-  // The embedded vector trace reads about 13 m conservatively above the
-  // printed worked-example result of 405 m.
-  assertNear(calculate('landing', 2000, 15, 2205, 10, 50), 1329, 50, '50 ft distance');
-});
+test('digitized AFM nomograph calculations retain their broad-grid checksums', () => {
+  const altitudes = [0, 2000, 4000, 6000, 8000, 10000];
+  const temperatures = [-20, 0, 15, 30, 50];
+  const masses = [1874, 2205, 2535, 2646];
+  const winds = [0, 10, 20];
+  const obstacles = [0, 25, 50];
+  const result = {};
 
-test('AFM climb worked examples are reproduced', () => {
-  assertNear(calculate('takeoffClimb', 0, 15, 2205), 1160, 25, 'take-off climb');
-  assertNear(calculate('cruiseClimb', 0, 15, 2205), 1050, 25, 'cruise climb');
+  for (const chart of ['takeoff', 'landing']) {
+    const samples = [];
+    for (const altitude of altitudes) {
+      for (const temperature of temperatures) {
+        for (const mass of masses) {
+          for (const wind of winds) {
+            for (const obstacle of obstacles) {
+              samples.push(calculate(
+                chart,
+                altitude,
+                temperature,
+                mass,
+                wind,
+                obstacle,
+              ));
+            }
+          }
+        }
+      }
+    }
+    assert.equal(samples.length, 1080);
+    result[chart] = digest(samples);
+  }
+
+  for (const chart of ['takeoffClimb', 'cruiseClimb']) {
+    const samples = [];
+    for (const altitude of altitudes) {
+      for (const temperature of temperatures) {
+        for (const mass of masses) {
+          samples.push(calculate(chart, altitude, temperature, mass));
+        }
+      }
+    }
+    assert.equal(samples.length, 120);
+    result[chart] = digest(samples);
+  }
+
+  assert.deepEqual(result, {
+    takeoff: '38323778ac7bc8976b8fba2cb2540b041e890e032c67b6fd853fdb47abc70b70',
+    landing: '7bf5b61b6b294abd695bbb6bbc1c117d3d3b69dc97f2d45c9e506a1c88f940ef',
+    takeoffClimb: 'dc0c7b86fc26e60f774393effa35a87567494ad1b19c023fd10464f2942477ef',
+    cruiseClimb: '87bfc15a58145702e7f0471ad094dde18f2e2b29e795c4efd70019965d361bbb',
+  });
 });
 
 test('obstacle-panel reference edges preserve the preceding distance', () => {
