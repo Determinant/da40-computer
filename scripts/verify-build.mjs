@@ -24,6 +24,10 @@ const manifest = JSON.parse(
 const da62Manifest = JSON.parse(
   await readFile(new URL("da62.webmanifest", outputDirectory), "utf8"),
 );
+const iconSource = await readFile(
+  new URL("assets/icons/icon.svg", outputDirectory),
+  "utf8",
+);
 const previewServerSource = await readFile(new URL("serve.mjs", import.meta.url), "utf8");
 
 const pageHtml = [
@@ -135,12 +139,15 @@ assert.doesNotMatch(html, /<object\b[^>]*class="chart"/);
 for (const [id, relativePath] of da40ChartEmbeds) {
   assert.match(
     html,
-    new RegExp(`<div class="chart chart-inline" id="${id}" ` +
-      `data-chart-source="${relativePath.replaceAll(".", "\\.")}">` +
-      `<template><style>`),
+    new RegExp(`<div class="chart chart-inline" id="${id}"><template><style>`),
     `Built DA40 page must inline the original ${id} chart for file:// use.`,
   );
 }
+assert.doesNotMatch(
+  html,
+  /data-chart-source=/,
+  "Built DA40 chart markup must not retain paths to removed source files.",
+);
 
 const precacheMatch = serviceWorker.match(/const PRECACHE_URLS = (\[[\s\S]*?\]);/);
 assert.ok(precacheMatch, "The generated service worker has no precache list.");
@@ -161,6 +168,12 @@ const outputFiles = (await collectRelativeFiles(outputDirectory))
   .sort();
 const cachedFiles = precacheUrls.map(url => url.replace(/^\.\//, "")).sort();
 assert.deepEqual(cachedFiles, outputFiles, "Every deployable app file must be precached.");
+for (const [, relativePath] of da40ChartEmbeds) {
+  assert.ok(
+    !outputFiles.includes(relativePath),
+    `Inlined chart must not also be shipped as a standalone file: ${relativePath}`,
+  );
+}
 
 for (const match of calculatorCss.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
   const reference = match[1];
@@ -210,6 +223,11 @@ for (const entry of manifests) {
   assert.ok(entry.manifest.name && entry.manifest.short_name && entry.manifest.description);
   assert.match(entry.manifest.start_url, new RegExp(`${entry.aircraft.toLowerCase()}\\.html$`));
 
+  assert.equal(
+    entry.manifest.icons.length,
+    2,
+    `${entry.aircraft} manifest must use the minimal shared PWA icon set.`,
+  );
   const iconSizes = new Set(entry.manifest.icons.map(icon => icon.sizes));
   assert.ok(iconSizes.has("192x192"), `${entry.aircraft} manifest needs a 192px icon.`);
   assert.ok(iconSizes.has("512x512"), `${entry.aircraft} manifest needs a 512px icon.`);
@@ -275,6 +293,27 @@ for (const entry of manifests) {
     );
   }
 }
+
+assert.deepEqual(
+  da62Manifest.icons,
+  manifest.icons,
+  "DA40 and DA62 manifests must use the shared DA40/62 icon set.",
+);
+assert.match(
+  iconSource,
+  /<text[^>]*font-family="B612, sans-serif"[^>]*>DA40\/62<\/text>/,
+  "The shared icon must label both aircraft with the bundled B612 font.",
+);
+assert.match(
+  da62Html,
+  /<link rel="icon" href="assets\/icons\/icon\.svg" type="image\/svg\+xml">/,
+  "DA62 must use the shared DA40/62 browser icon.",
+);
+assert.match(
+  da62Html,
+  /<link rel="apple-touch-icon" sizes="180x180" href="assets\/icons\/apple-touch-icon-180\.png">/,
+  "DA62 must use the shared DA40/62 Apple touch icon.",
+);
 
 const pages = [
   { fileName: "da40.html", html, source: `${appSource}\n${flightToolsSource}\n${pwaSource}` },

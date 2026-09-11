@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#172033"/>
+  <title>DA40/62 Computer icon</title>
   <style>
     @font-face {
       font-family: "B612";
@@ -8,15 +8,16 @@
       font-weight: 400;
     }
   </style>
+  <rect width="512" height="512" fill="#172033"/>
 
-  <!-- simplified three-blade constant-speed propeller mark -->
-  <g transform="translate(256 190)" fill="#fff">
+  <!-- A shared propeller mark for the DA40 and DA62 calculators. -->
+  <g transform="translate(256 180) scale(.84)" fill="#fff">
     <path d="M0 0C-17-22-29-57-24-101c3-25 12-46 24-49 13 3 21 24 24 49 5 44-7 79-24 101Z"/>
     <path d="M0 0C-17-22-29-57-24-101c3-25 12-46 24-49 13 3 21 24 24 49 5 44-7 79-24 101Z" transform="rotate(120)"/>
     <path d="M0 0C-17-22-29-57-24-101c3-25 12-46 24-49 13 3 21 24 24 49 5 44-7 79-24 101Z" transform="rotate(240)"/>
+    <circle r="31" fill="#93c5fd" stroke="#fff" stroke-width="8"/>
+    <circle r="10" fill="#172033"/>
   </g>
-  <circle cx="256" cy="190" r="31" fill="#93c5fd" stroke="#fff" stroke-width="8"/>
-  <circle cx="256" cy="190" r="10" fill="#172033"/>
 
-  <text x="256" y="452" fill="#fff" font-family="B612, sans-serif" font-size="80" font-weight="400" letter-spacing="4" text-anchor="middle">DA40</text>
+  <text x="256" y="394" fill="#fff" font-family="B612, sans-serif" font-size="68" font-weight="400" letter-spacing="1" text-anchor="middle">DA40/62</text>
 </svg>

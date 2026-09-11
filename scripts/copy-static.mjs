@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 
 const publicDirectory = new URL("../public/", import.meta.url);
 const outputDirectory = new URL("../dist/", import.meta.url);
@@ -73,10 +73,15 @@ for (const [id, relativePath] of da40Charts) {
   }
   const svg = (await readFile(new URL(relativePath, publicDirectory), "utf8"))
     .replace(/^\s*<\?xml[^>]*\?>\s*/, "");
-  const inlineMarkup = `<div class="chart chart-inline" id="${id}" ` +
-    `data-chart-source="${relativePath}">` +
+  const inlineMarkup = `<div class="chart chart-inline" id="${id}">` +
     `<template><style>:host{display:block}svg{display:block;width:100%;height:auto}</style>` +
     `${svg}</template></div>`;
   da40Html = da40Html.replace(objectMarkup, inlineMarkup);
 }
 await writeFile(da40HtmlUrl, da40Html);
+
+// The built page now owns the chart markup. Avoid also shipping and
+// precaching the four source SVGs as redundant standalone files.
+await Promise.all(da40Charts.map(([, relativePath]) =>
+  rm(new URL(relativePath, outputDirectory)),
+));
