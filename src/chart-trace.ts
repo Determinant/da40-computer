@@ -204,7 +204,7 @@ namespace ChartTrace {
         const parsedStrokeWidth = Number.parseFloat(strokeWidth);
         const numericStrokeWidth = Number.isFinite(parsedStrokeWidth) ? parsedStrokeWidth : 1;
         const commonLine = {
-            stroke: 'red',
+            stroke: 'var(--chart-trace, red)',
             'stroke-width': strokeWidth,
             fill: 'none',
         };
@@ -221,8 +221,8 @@ namespace ChartTrace {
         });
         const outputGuide = createPath({ ...commonLine, opacity: '0.85' });
         const marker = createPath({
-            fill: 'red',
-            stroke: 'white',
+            fill: 'var(--chart-trace, red)',
+            stroke: 'var(--chart-trace-outline, white)',
             'stroke-width': strokeWidth,
         });
         return {

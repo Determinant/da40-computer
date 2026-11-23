@@ -13,6 +13,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon-180.png">
+    <script src="assets/js/theme.js"></script>
     <link rel="stylesheet" href="assets/calculator.css">
   </head>
   <body>
@@ -25,6 +26,7 @@
         </div>
         <div class="title-actions">
           <a class="aircraft-link" href="da62.html">DA62 computer</a>
+          <button id="theme-toggle" class="theme-toggle" type="button">Dark mode</button>
           <button id="tools-toggle" class="tools-toggle" type="button" aria-haspopup="dialog" aria-controls="tools-drawer" aria-expanded="false">Tools</button>
         </div>
       </div>
@@ -37,7 +39,11 @@
               <col>
             </colgroup>
             <tr class="header0">
-              <td colspan="3">Weights</td>
+              <td colspan="3">
+                <div class="section-heading">
+                  <button id="section-weights" class="section-toggle" type="button" aria-expanded="true">Weights</button>
+                </div>
+              </td>
             </tr>
             <tr class="header">
               <td class="checkbox-options" colspan="2">
@@ -108,7 +114,11 @@
               <col>
             </colgroup>
             <tr class="header0">
-              <td colspan="2">Environment</td>
+              <td colspan="2">
+                <div class="section-heading">
+                  <button id="section-environment" class="section-toggle" type="button" aria-expanded="true">Environment</button>
+                </div>
+              </td>
             </tr>
             <tr class="header">
               <td colspan="2"></td>
@@ -156,7 +166,11 @@
               <col>
             </colgroup>
             <tr class="header0">
-              <td colspan="4">Aircraft Data</td>
+              <td colspan="4">
+                <div class="section-heading">
+                  <button id="section-aircraft-data" class="section-toggle" type="button" aria-expanded="true">Aircraft Data</button>
+                </div>
+              </td>
             </tr>
             <tr class="header">
               <td colspan="4"></td>
@@ -192,10 +206,18 @@
               <col>
             </colgroup>
             <tr class="header0">
-              <td colspan="4">Field Performance</td>
+              <td colspan="4">
+                <div class="section-heading">
+                  <button id="section-field-performance" class="section-toggle" type="button" aria-expanded="true">Field Performance</button>
+                </div>
+              </td>
             </tr>
             <tr class="section-title">
-              <td colspan="4">Takeoff Distance · ft</td>
+              <td colspan="4">
+                <div class="section-heading">
+                  <button id="section-takeoff-distance" class="section-toggle" type="button" aria-expanded="true">Takeoff Distance · ft</button>
+                </div>
+              </td>
             </tr>
             <tr class="header">
               <td>Flaps</td>
@@ -210,7 +232,11 @@
               <td class="result"><span class="takeoff"></span></td>
             </tr>
             <tr class="section-title">
-              <td colspan="4">Landing Distance · ft</td>
+              <td colspan="4">
+                <div class="section-heading">
+                  <button id="section-landing-distance" class="section-toggle" type="button" aria-expanded="true">Landing Distance · ft</button>
+                </div>
+              </td>
             </tr>
             <tr class="header">
               <td>Flaps</td>
@@ -233,7 +259,11 @@
               <col>
             </colgroup>
             <tr class="header0">
-              <td colspan="4">Climb Performance</td>
+              <td colspan="4">
+                <div class="section-heading">
+                  <button id="section-climb-performance" class="section-toggle" type="button" aria-expanded="true">Climb Performance</button>
+                </div>
+              </td>
             </tr>
             <tr class="header">
               <td>Configuration</td>
@@ -268,138 +298,192 @@
               <col>
               <col>
             </colgroup>
-            <tr class="header">
-              <td colspan="4">Engine Performance</td>
-            </tr>
-            <tr>
-              <td>ISA (ft)</td>
-              <td><input type="text" class="ep-alt update max6" value="0" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Engine-performance pressure altitude in feet"></td>
-              <td>RPM</td>
-              <td><input type="text" class="ep-rpm update max4" value="2400" maxlength="4" inputmode="numeric" autocomplete="off" aria-label="Engine RPM"></td>
-            </tr>
-            <tr>
-              <td>inHg</td>
-              <td><input type="text" class="ep-mp update max6" value="24" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Manifold pressure in inches of mercury"></td>
-              <td class="ep-result" colspan="2"><span class="ep-output"></span></td>
-            </tr>
-            <tr>
-              <td class="ep-mixture" colspan="4"><label><input type="checkbox" class="ep-best-power update"><span>Best Power mixture (off = Best Economy)</span></label></td>
-            </tr>
-            <tr class="header">
-              <td colspan="4">Wind Components</td>
-            </tr>
-            <tr>
-              <td>Wind</td>
-              <td><div class="wind"><input type="text" class="dir wc-dir update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Wind direction in degrees">@<input type="text" class="vel wc-vel update max2" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Wind speed in knots"></div></td>
-              <td>Rwy</td>
-              <td><input type="text" class="wc-rwy update max2" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Runway number"></td>
-            </tr>
-            <tr>
-              <td>Xwind.</td>
-              <td><span class="wc-cross"></span></td>
-              <td>Hwind.</td>
-              <td><span class="wc-head"></span></td>
-            </tr>
-            <tr class="header">
-              <td colspan="4">FPM to ft/NM</td>
-            </tr>
-            <tr>
-              <td>GS</td>
-              <td><input type="text" class="fpm-gs update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for climb-gradient conversion"></td>
-              <td>FPM</td>
-              <td><input type="text" class="fpm-rate update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Vertical speed in feet per minute"></td>
-            </tr>
-            <tr>
-              <td>ft/NM</td>
-              <td><input type="text" class="fpm-gradient update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Climb gradient in feet per nautical mile"></td>
-              <td colspan="2"></td>
-            </tr>
-            <tr class="header">
-              <td colspan="4">Descent (slope =<input type="text" class="d-slope update max2" value="3" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Descent slope in degrees">°)</td>
-            </tr>
-            <tr>
-              <td>GS</td>
-              <td><input type="text" class="d-gs update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for descent calculation"></td>
-              <td>↓Rate</td>
-              <td><span class="d-rate"></span></td>
-            </tr>
-            <tr>
-              <td>ΔH</td>
-              <td><input type="text" class="d-alt update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Descent height in feet"></td>
-              <td>Dist.</td>
-              <td><span class="d-dist"></span></td>
-            </tr>
-            <tr class="header">
-              <td colspan="4">Holding Pattern</td>
-            </tr>
-            <tr>
-              <td>Out/In</td>
-              <td><div class="holding"><input type="text" class="h-out update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding outbound course in degrees">/<input type="text" class="h-in update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding inbound course in degrees"></div></td>
-              <td>Hdg</td>
-              <td><input type="text" class="h-hdg update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Aircraft heading in degrees for holding entry"></td>
-            </tr>
-            <tr>
-              <td colspan="2"><label><input type="checkbox" class="h-left update"><span>Left turns</span></label></td>
-              <td>Type</td>
-              <td><span class="h-type"></span></td>
-            </tr>
-            <tr class="header">
-              <td colspan="4">E6B</td>
-            </tr>
-            <tr>
-              <td>Course</td>
-              <td><input type="text" class="tc update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="True course in degrees"></td>
-              <td>TAS</td>
-              <td><input type="text" class="tas update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="True airspeed in knots"></td>
-            </tr>
-            <tr>
-              <td>Wind</td>
-              <td><div class="wind"><input type="text" class="dir windir update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="E6B wind direction in degrees">@<input type="text" class="vel winvel update max2" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="E6B wind speed in knots"></div></td>
-              <td>E−/W+</td>
-              <td><input type="text" class="vr update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Magnetic variation correction; east negative and west positive"></td>
-            </tr>
-            <tr>
-              <td>Hdg</td>
-              <td><span class="hdg"></span></td>
-              <td>GS</td>
-              <td><span class="gs"></span></td>
-            </tr>
-            <tr class="header">
-              <td colspan="4">Std. Rate Turn</td>
-            </tr>
-            <tr>
-              <td>TAS</td>
-              <td><input type="text" class="t-tas update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="True airspeed in knots for standard-rate turn"></td>
-              <td>Bank</td>
-              <td><span class="t-bank"></span></td>
-            </tr>
-            <tr class="header">
-              <td colspan="4">Unit Conversions</td>
-            </tr>
-            <tr>
-              <td>°C</td>
-              <td><input type="text" class="c-cel update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Celsius"></td>
-              <td>°F</td>
-              <td><input type="text" class="c-fah update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Fahrenheit"></td>
-            </tr>
-            <tr>
-              <td>NM/kts</td>
-              <td><input type="text" class="c-nm update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in nautical miles or speed in knots"></td>
-              <td>SM/mph</td>
-              <td><input type="text" class="c-sm update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in statute miles or speed in miles per hour"></td>
-            </tr>
-            <tr>
-              <td>feet</td>
-              <td><input type="text" class="c-ft update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in feet"></td>
-              <td>m</td>
-              <td><input type="text" class="c-m update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in metres"></td>
-            </tr>
-            <tr>
-              <td>lb</td>
-              <td><input type="text" class="c-lb update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in pounds"></td>
-              <td>kg</td>
-              <td><input type="text" class="c-kg update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in kilograms"></td>
-            </tr>
+            <tbody>
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-engine-performance" class="section-toggle" type="button" aria-expanded="true">Engine Performance</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>ISA (ft)</td>
+                <td><input type="text" class="ep-alt update max6" value="0" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Engine-performance pressure altitude in feet"></td>
+                <td>RPM</td>
+                <td><input type="text" class="ep-rpm update max4" value="2400" maxlength="4" inputmode="numeric" autocomplete="off" aria-label="Engine RPM"></td>
+              </tr>
+              <tr>
+                <td>inHg</td>
+                <td><input type="text" class="ep-mp update max6" value="24" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Manifold pressure in inches of mercury"></td>
+                <td class="ep-result" colspan="2">
+                  <div class="ep-control">
+                    <input type="range" class="ep-slider" min="45" max="75" step="0.1" aria-label="Engine power in percent">
+                    <span class="ep-output"><span class="ep-fuel calculated"></span><span class="ep-power calculated"></span></span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="ep-mixture" colspan="4"><label><input type="checkbox" class="ep-best-power update"><span>Best Power mixture (off = Best Economy)</span></label></td>
+              </tr>
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-wind-components" class="section-toggle" type="button" aria-expanded="true">Wind Components</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>Wind</td>
+                <td><div class="wind"><input type="text" class="dir wc-dir update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Wind direction in degrees">@<input type="text" class="vel wc-vel update max2" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Wind speed in knots"></div></td>
+                <td>Rwy</td>
+                <td><input type="text" class="wc-rwy update max2" maxlength="2" inputmode="numeric" autocomplete="off" aria-label="Runway number"></td>
+              </tr>
+              <tr>
+                <td>Xwind.</td>
+                <td><span class="wc-cross"></span></td>
+                <td>Hwind.</td>
+                <td><span class="wc-head"></span></td>
+              </tr>
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-climb-gradient" class="section-toggle" type="button" aria-expanded="true">FPM to ft/NM</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>GS</td>
+                <td><input type="text" class="fpm-gs update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for climb-gradient conversion"></td>
+                <td>FPM</td>
+                <td><input type="text" class="fpm-rate update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Vertical speed in feet per minute"></td>
+              </tr>
+              <tr>
+                <td>ft/NM</td>
+                <td><input type="text" class="fpm-gradient update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Climb gradient in feet per nautical mile"></td>
+                <td colspan="2"></td>
+              </tr>
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-descent" class="section-toggle" type="button" aria-expanded="true">Descent</button>
+                    <span class="section-extra">(slope = <input type="text" class="d-slope update max2" value="3" maxlength="2" inputmode="decimal" autocomplete="off" aria-label="Descent slope in degrees">°)</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>GS</td>
+                <td><input type="text" class="d-gs update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="Ground speed in knots for descent calculation"></td>
+                <td>↓Rate</td>
+                <td><span class="d-rate"></span></td>
+              </tr>
+              <tr>
+                <td>ΔH</td>
+                <td><input type="text" class="d-alt update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Descent height in feet"></td>
+                <td>Dist.</td>
+                <td><span class="d-dist"></span></td>
+              </tr>
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-holding-pattern" class="section-toggle" type="button" aria-expanded="true">Holding Pattern</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>Out/In</td>
+                <td><div class="holding"><input type="text" class="h-out update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding outbound course in degrees">/<input type="text" class="h-in update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Holding inbound course in degrees"></div></td>
+                <td>Hdg</td>
+                <td><input type="text" class="h-hdg update max3" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Aircraft heading in degrees for holding entry"></td>
+              </tr>
+              <tr>
+                <td colspan="2"><label><input type="checkbox" class="h-left update"><span>Left turns</span></label></td>
+                <td>Type</td>
+                <td><span class="h-type"></span></td>
+              </tr>
+            </tbody>
+            <tbody id="e6b" aria-label="E6B flight computer">
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-e6b" class="section-toggle" type="button" aria-expanded="true">E6B</button>
+                    <button class="e6b-clear" type="button" aria-label="Clear E6B">Clear</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>Course °T</td>
+                <td><input type="text" data-field="course" inputmode="decimal" maxlength="18" autocomplete="off" aria-label="E6B true course in degrees"></td>
+                <td>TAS (kt)</td>
+                <td><input type="text" data-field="tas" inputmode="decimal" maxlength="18" autocomplete="off" aria-label="E6B true airspeed in knots"></td>
+              </tr>
+              <tr>
+                <td>Wind °T</td>
+                <td><div class="wind"><input type="text" class="dir" data-field="windDirection" inputmode="decimal" maxlength="18" autocomplete="off" aria-label="E6B wind from direction in degrees true">@<input type="text" class="vel" data-field="windSpeed" inputmode="decimal" maxlength="18" autocomplete="off" aria-label="E6B wind speed in knots"></div></td>
+                <td>E− / W+</td>
+                <td><input type="text" class="e6b-variation" inputmode="text" maxlength="12" autocomplete="off" placeholder="0" aria-label="E6B variation in degrees: east negative, west positive"></td>
+              </tr>
+              <tr>
+                <td>Hdg °T</td>
+                <td><input type="text" data-field="heading" inputmode="decimal" maxlength="18" autocomplete="off" aria-label="E6B true heading in degrees"></td>
+                <td>GS (kt)</td>
+                <td><input type="text" data-field="gs" inputmode="decimal" maxlength="18" autocomplete="off" aria-label="E6B groundspeed in knots"></td>
+              </tr>
+              <tr>
+                <td>WCA</td>
+                <td class="e6b-wca calculated"></td>
+                <td>Hdg °M</td>
+                <td class="e6b-mh calculated"></td>
+              </tr>
+              <tr class="e6b-message" hidden>
+                <td colspan="4" role="status"></td>
+              </tr>
+            </tbody>
+            <tbody>
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-standard-rate-turn" class="section-toggle" type="button" aria-expanded="true">Std. Rate Turn</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>TAS</td>
+                <td><input type="text" class="t-tas update max3" maxlength="3" inputmode="decimal" autocomplete="off" aria-label="True airspeed in knots for standard-rate turn"></td>
+                <td>Bank</td>
+                <td><span class="t-bank"></span></td>
+              </tr>
+              <tr class="header">
+                <td colspan="4">
+                  <div class="section-heading">
+                    <button id="section-unit-conversions" class="section-toggle" type="button" aria-expanded="true">Unit Conversions</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td>°C</td>
+                <td><input type="text" class="c-cel update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Celsius"></td>
+                <td>°F</td>
+                <td><input type="text" class="c-fah update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Temperature in degrees Fahrenheit"></td>
+              </tr>
+              <tr>
+                <td>NM/kts</td>
+                <td><input type="text" class="c-nm update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in nautical miles or speed in knots"></td>
+                <td>SM/mph</td>
+                <td><input type="text" class="c-sm update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Distance in statute miles or speed in miles per hour"></td>
+              </tr>
+              <tr>
+                <td>feet</td>
+                <td><input type="text" class="c-ft update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in feet"></td>
+                <td>m</td>
+                <td><input type="text" class="c-m update max6" maxlength="6" inputmode="decimal" autocomplete="off" aria-label="Length in metres"></td>
+              </tr>
+              <tr>
+                <td>lb</td>
+                <td><input type="text" class="c-lb update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in pounds"></td>
+                <td>kg</td>
+                <td><input type="text" class="c-kg update max4" maxlength="4" inputmode="decimal" autocomplete="off" aria-label="Weight in kilograms"></td>
+              </tr>
+            </tbody>
           </table>
         </dialog>
       </div>
@@ -438,7 +522,10 @@
     </div>
     <script src="assets/vendor/json-url/json-url-single.js"></script>
     <script src="assets/js/performance-common.js"></script>
+    <script src="assets/js/table-sections.js"></script>
     <script src="assets/js/flight-tools.js"></script>
+    <script src="assets/js/e6b.js"></script>
+    <script src="assets/js/e6b-ui.js"></script>
     <script src="assets/js/chart-trace.js"></script>
     <script src="assets/js/da40.js"></script>
     <script src="assets/js/pwa.js"></script>

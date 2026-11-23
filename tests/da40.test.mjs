@@ -374,27 +374,6 @@ test('descent distance retains tenths of a nautical mile', () => {
   assert.equal(evaluate('formatFloat(FlightTools.descentDistance(100, 3), 1)'), '0.3');
 });
 
-test('wind navigation handles crosswinds, variation, infeasible wind, and calm wind', () => {
-  assert.match(html, />E−\/W\+<\/td>/);
-  assert.equal(
-    evaluate('Math.round(FlightTools.calculateWindTriangle(360, 120, 270, 20).trueHeading)'),
-    350,
-  );
-  assertClose(
-    evaluate('FlightTools.calculateWindTriangle(360, 120, 270, 20).groundSpeed'),
-    118.3216,
-    0.001,
-  );
-  assert.equal(
-    evaluate('Math.round(FlightTools.calculateWindTriangle(180, 120, 270, 20).trueHeading)'),
-    190,
-  );
-  assert.equal(evaluate('FlightTools.calculateWindTriangle(0, 10, 90, 20) === null'), true);
-  assert.equal(evaluate('FlightTools.formatDirection(190 - 10)'), '180');
-  assert.equal(evaluate('FlightTools.formatDirection(190 + 10)'), '200');
-  assert.equal(evaluate('FlightTools.calculateWindTriangle(90, 120, 0, 0).groundSpeed'), 120);
-});
-
 test('true airspeed conversion follows standard-atmosphere physics', () => {
   assertClose(evaluate('calibratedToTrueAirspeed(60, 0, 15)'), 60);
 
@@ -436,44 +415,109 @@ test('recommended engine settings follow the AFM gray bands conservatively', () 
   }
 });
 
-test('engine output combines fuel flow and interpolated power', () => {
-  const state = evaluateJson(`(() => {
-    const cell = {
-      gray: false,
-      classList: { toggle(_name, enabled) { cell.gray = enabled; } },
+const engineUI = () => evaluate(`(() => {
+  const makeElement = (value = '') => {
+    const classes = new Set();
+    const listeners = new Map();
+    return {
+      value, textContent: '', checked: false, disabled: false,
+      get valueAsNumber() { return Number(this.value); },
+      classList: {
+        toggle(name, enabled) { enabled ? classes.add(name) : classes.delete(name); },
+        contains(name) { return classes.has(name); },
+      },
+      style: { setProperty() {} },
+      addEventListener(name, listener) { listeners.set(name, listener); },
+      setAttribute(name, value) { this[name] = value; },
+      removeAttribute(name) { delete this[name]; },
+      fire(name = 'input') { listeners.get(name)?.(); },
     };
-    const nodes = {
-      '.ep-alt': { innerText: '0' },
-      '.ep-rpm': { innerText: '2200' },
-      '.ep-mp': { innerText: '24.9' },
-      '.ep-output': { innerText: '', parentNode: cell },
-      '.ep-best-power': { checked: false },
-    };
-    const toolsElement = { querySelector(selector) { return nodes[selector]; } };
-    refreshEnginePerformance(toolsElement);
-    const recommended = [nodes['.ep-output'].innerText, cell.gray];
-    nodes['.ep-rpm'].innerText = '2400';
-    nodes['.ep-mp'].innerText = '23.4';
-    refreshEnginePerformance(toolsElement);
-    const notRecommended = [nodes['.ep-output'].innerText, cell.gray];
-    nodes['.ep-mp'].innerText = '24';
-    refreshEnginePerformance(toolsElement);
-    const interpolated = [nodes['.ep-output'].innerText, cell.gray];
-    nodes['.ep-alt'].innerText = '18000';
-    refreshEnginePerformance(toolsElement);
-    return [
-      recommended,
-      notRecommended,
-      interpolated,
-      [nodes['.ep-output'].innerText, cell.gray],
-    ];
-  })()`);
-  assert.deepEqual(state, [
-    ['8.20 gal/h, 65 % Power', true],
-    ['8.50 gal/h, 65 % Power', false],
-    ['8.75 gal/h, 68 % Power', false],
-    ['', false],
-  ]);
+  };
+  const nodes = Object.fromEntries([
+    ['.ep-alt', '0'], ['.ep-rpm', '2200'], ['.ep-mp', '24.9'],
+    ['.ep-slider', '65'], ['.ep-control'], ['.ep-power'], ['.ep-fuel'],
+    ['.ep-result'], ['.ep-best-power'],
+  ].map(([key, value]) => [key, makeElement(value)]));
+  const refresh = initializeEnginePerformance({ querySelector: selector => nodes[selector] });
+  refresh();
+  return {
+    nodes,
+    edit(selector, value) {
+      const input = nodes[selector];
+      if (typeof value === 'boolean') input.checked = value;
+      else input.value = value;
+      input.fire();
+      refresh();
+    },
+  };
+})()`);
+
+test('engine power range follows the published altitude, RPM and mixture limits', () => {
+  for (const [altitude, rpm, mixture, expected] of [
+    [0, 2400, 'bestEconomy', [45, 75]],
+    [0, 1800, 'bestEconomy', [45, 45]],
+    [0, 1800, 'bestPower', null],
+    [5500, 2300, 'bestEconomy', [45, 65]],
+    [12000, 2400, 'bestPower', [45, 55]],
+    [17000, 2400, 'bestEconomy', [45, 45]],
+    [17000, 2300, 'bestEconomy', null],
+    [18000, 2400, 'bestEconomy', null],
+  ]) {
+    assert.deepEqual(evaluateJson(`enginePowerRange(${altitude}, ${rpm}, '${mixture}')`), expected);
+  }
+});
+
+test('engine display preserves fuel flow, power and AFM recommendation behavior', () => {
+  const ui = engineUI();
+  const output = () => [ui.nodes['.ep-fuel'].textContent, ui.nodes['.ep-power'].textContent,
+    ui.nodes['.ep-result'].classList.contains('gray')];
+  assert.deepEqual(output(), ['8.20 gal/h', '65%', true]);
+  ui.edit('.ep-rpm', '2400');
+  ui.edit('.ep-mp', '23.4');
+  assert.deepEqual(output(), ['8.50 gal/h', '65%', false]);
+  ui.edit('.ep-mp', '24');
+  assert.deepEqual(output(), ['8.75 gal/h', '67.5%', false]);
+  assert.equal(ui.nodes['.ep-slider'].value, '67.5');
+  ui.edit('.ep-alt', '18000');
+  assert.deepEqual(output(), ['— gal/h', '—%', false]);
+  assert.equal(ui.nodes['.ep-slider'].disabled, true);
+});
+
+test('most recent engine input controls the reverse calculation and output highlighting', () => {
+  const ui = engineUI();
+  ui.edit('.ep-rpm', '2400');
+  ui.edit('.ep-slider', '65');
+  assert.equal(ui.nodes['.ep-mp'].value, '23.40');
+  assert.ok(ui.nodes['.ep-mp'].classList.contains('calculated'));
+  assert.ok(!ui.nodes['.ep-power'].classList.contains('calculated'));
+  ui.edit('.ep-alt', '5000');
+  assert.equal(ui.nodes['.ep-mp'].value, '22.00');
+  ui.edit('.ep-best-power', true);
+  assert.equal(ui.nodes['.ep-fuel'].textContent, '9.80 gal/h');
+  ui.edit('.ep-mp', '24.1');
+  assert.equal(ui.nodes['.ep-power'].textContent, '75%');
+  assert.ok(ui.nodes['.ep-power'].classList.contains('calculated'));
+  assert.ok(!ui.nodes['.ep-mp'].classList.contains('calculated'));
+  ui.edit('.ep-slider', '75');
+  ui.edit('.ep-alt', '12000');
+  assert.equal(ui.nodes['.ep-slider'].max, '55');
+  assert.equal(ui.nodes['.ep-mp'].value, '');
+  assert.equal(ui.nodes['.ep-power'].textContent, '—%');
+  ui.edit('.ep-slider', '55');
+  assert.equal(ui.nodes['.ep-mp'].value, '17.80');
+  assert.equal(ui.nodes['.ep-fuel'].textContent, '8.70 gal/h');
+});
+
+test('a single published engine power setting can still be selected', () => {
+  const ui = engineUI();
+  ui.edit('.ep-rpm', '1800');
+  assert.equal(ui.nodes['.ep-slider'].min, '45');
+  assert.equal(ui.nodes['.ep-slider'].max, '45');
+  assert.equal(ui.nodes['.ep-slider'].disabled, false);
+  ui.nodes['.ep-slider'].fire('click');
+  assert.equal(ui.nodes['.ep-power'].textContent, '45%');
+  assert.equal(ui.nodes['.ep-mp'].value, '22.70');
+  assert.equal(ui.nodes['.ep-fuel'].textContent, '5.80 gal/h');
 });
 
 test('climb CAS tables match conservative AFM chart readings', () => {

@@ -16,6 +16,10 @@
   },
   "files": [
     "src/globals.d.ts",
+    "src/theme.ts",
+    "src/table-sections.ts",
+    "src/e6b.ts",
+    "src/e6b-ui.ts",
     "src/performance-common.ts",
     "src/flight-tools.ts",
     "src/chart-trace.ts",

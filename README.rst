@@ -19,6 +19,41 @@ Clicking ``Save`` generates a URL containing the current calculator inputs, so
 it can be kept or shared. After editing an existing saved URL, click ``Save``
 again and copy the updated link.
 
+Appearance and E6B
+------------------
+
+Both aircraft pages have a light/dark button. The initial appearance follows
+system settings; an explicit choice is remembered in browser storage and shared
+between the pages. Performance charts have transparent backgrounds and adapt
+their ink, axes, cyan reference curves, and red calculation traces to the chosen
+theme. Printed output uses the light palette.
+
+Click a table or tool section heading to fold or unfold it. Each aircraft page
+remembers these choices locally. Tools start folded; other sections start
+expanded. Folding keeps entered values intact, and printing expands every
+section. The heading buttons also work with Enter or Space.
+
+The E6B wind computer is a section of the ``Tools`` table. Enter four known
+wind-triangle values; the remaining two calculate automatically and appear in
+blue. Input directions use true north, and wind direction is **from**.
+Variation is east negative / west positive, with blank meaning zero. The last
+row gives WCA and magnetic heading. Editing a calculated value makes it an
+input and releases its TAS/GS or course/heading counterpart first, otherwise
+the oldest input. Both TAS and GS can still be entered to calculate wind.
+Use ``Clear`` for a new problem.
+Ambiguous problems show both solutions. Like the other side tools, E6B entries
+work offline and are not included in the aircraft's saved URL.
+
+In DA40 Engine Performance, edit manifold pressure to calculate power, or drag
+the fuel-flow/power cell to set power and calculate manifold pressure. The slider
+uses only the published range for the selected altitude, RPM, and mixture.
+Calculated values are blue; changing RPM or altitude preserves the active input.
+Unsupported settings leave calculated values blank instead of extrapolating.
+
+Wind calculations are checked against the `ASA E6-B manual
+<https://asa2fly.com/content/support-files/product-manuals/E6B_Manual.pdf>`_
+and all 15 pairs of unknowns across 120 independently constructed triangles.
+
 Offline installation
 --------------------
 

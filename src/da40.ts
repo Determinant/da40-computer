@@ -915,6 +915,17 @@ const calculateEnginePerformance = (
     };
 };
 
+const enginePowerRange = (
+    pressureAltitude: number,
+    rpm: number,
+    mixture: FuelMixture,
+): readonly [number, number] | null => {
+    const powers = enginePerformancePowers.filter(power =>
+        Number.isFinite(manifoldPressureAtPower(pressureAltitude, rpm, power)) &&
+        Number.isFinite(fuelFlowAtPower(power, rpm, mixture)));
+    return powers.length ? [powers[0], powers[powers.length - 1]] : null;
+};
+
 // For an interpolated setting, require every table point that brackets it to
 // be shaded. This avoids presenting an unmarked in-between setting as an AFM-
 // recommended operating point.
@@ -1211,30 +1222,79 @@ const refresh = () => {
     setValue(env.querySelector('.density-alt'), formatInt(densityAlt));
 };
 
-const refreshEnginePerformance = (tools: HTMLElement) => {
-    const mixture: FuelMixture =
-        tools.querySelector<HTMLInputElement>('.ep-best-power')!.checked
-            ? 'bestPower'
-            : 'bestEconomy';
-    const pressureAltitude = parseValue(tools.querySelector('.ep-alt'));
-    const rpm = parseValue(tools.querySelector('.ep-rpm'));
-    const manifoldPressure = parseValue(tools.querySelector('.ep-mp'));
-    const { power, fuelFlow } = calculateEnginePerformance(
-        pressureAltitude,
-        rpm,
-        manifoldPressure,
-        mixture,
-    );
-    const performanceOutput = tools.querySelector('.ep-output')!;
-    const performance = [fuelFlow, power].every(Number.isFinite)
-        ? `${formatFloat(fuelFlow, 2)} gal/h, ${formatInt(power)} % Power`
-        : '';
-    setValue(performanceOutput, performance);
-    (performanceOutput.parentNode as Element).classList.toggle(
-        'gray',
-        Number.isFinite(fuelFlow) &&
-            isRecommendedEngineSetting(pressureAltitude, rpm, manifoldPressure),
-    );
+const initializeEnginePerformance = (tools: HTMLElement) => {
+    const manifoldInput = tools.querySelector<HTMLInputElement>('.ep-mp')!;
+    const slider = tools.querySelector<HTMLInputElement>('.ep-slider')!;
+    const control = tools.querySelector<HTMLElement>('.ep-control')!;
+    const powerOutput = tools.querySelector<HTMLElement>('.ep-power')!;
+    const fuelOutput = tools.querySelector<HTMLElement>('.ep-fuel')!;
+    const resultCell = tools.querySelector<HTMLElement>('.ep-result')!;
+    let source: 'manifoldPressure' | 'power' = 'manifoldPressure';
+    // Keep the requested power separately: changing a range's bounds can
+    // clamp its native value, which must not silently become a new input.
+    let selectedPower = NaN;
+
+    manifoldInput.addEventListener('input', () => { source = 'manifoldPressure'; });
+
+    const refresh = () => {
+        const mixture: FuelMixture = tools.querySelector<HTMLInputElement>('.ep-best-power')!.checked
+            ? 'bestPower' : 'bestEconomy';
+        const altitude = parseValue(tools.querySelector('.ep-alt'));
+        const rpm = parseValue(tools.querySelector('.ep-rpm'));
+        const range = enginePowerRange(altitude, rpm, mixture);
+        const result = source === 'power'
+            ? { power: selectedPower, fuelFlow: fuelFlowAtPower(selectedPower, rpm, mixture) }
+            : calculateEnginePerformance(altitude, rpm, parseValue(manifoldInput), mixture);
+        const valid = range !== null && Number.isFinite(result.fuelFlow) &&
+            result.power >= range[0] && result.power <= range[1];
+        const power = valid ? result.power : NaN;
+        const manifoldPressure = source === 'power'
+            ? manifoldPressureAtPower(altitude, rpm, power) : parseValue(manifoldInput);
+        if (source === 'power') {
+            setValue(manifoldInput, formatFloat(manifoldPressure, 2));
+        }
+        manifoldInput.classList.toggle('calculated', source === 'power');
+        if (source === 'power') manifoldInput.title = 'Calculated';
+        else manifoldInput.removeAttribute('title');
+        powerOutput.classList.toggle('calculated', source === 'manifoldPressure');
+        powerOutput.textContent = `${valid ? Number(power.toFixed(1)) : '—'}%`;
+        fuelOutput.textContent = `${valid ? formatFloat(result.fuelFlow, 2) : '—'} gal/h`;
+
+        const [min, max] = range ?? [0, 0];
+        slider.min = String(min);
+        slider.max = String(max);
+        slider.disabled = range === null;
+        slider.value = String(valid ? power : (min + max) / 2);
+        const progress = valid && max > min ? (power - min) / (max - min) * 100 : 0;
+        control.style.setProperty('--range-progress', `${progress}%`);
+        control.classList.toggle('unavailable', !valid);
+        const recommended = valid && isRecommendedEngineSetting(altitude, rpm, manifoldPressure);
+        resultCell.classList.toggle('gray', recommended);
+        slider.title = range
+            ? `${min}–${max}% power${recommended ? ' · AFM recommended setting' : ''}`
+            : 'No published setting for this altitude, RPM and mixture';
+        slider.setAttribute('aria-valuetext', valid
+            ? `${powerOutput.textContent} power, ${formatFloat(result.fuelFlow, 2)} gallons per hour`
+            : range ? `Choose power from ${min} to ${max}%` : 'No published setting');
+    };
+    // A single published power setting still needs to be selectable, even
+    // though its range cannot move or fire a native input event.
+    const selectPower = () => {
+        source = 'power';
+        selectedPower = slider.valueAsNumber;
+        refresh();
+    };
+    slider.addEventListener('input', selectPower);
+    slider.addEventListener('click', selectPower);
+    slider.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ' ||
+            (slider.min === slider.max &&
+                ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))) {
+            event.preventDefault();
+            slider.click();
+        }
+    });
+    return refresh;
 };
 
 const regUpdatable = (updatable: NodeListOf<Element>, func: () => void) => {
@@ -1468,7 +1528,8 @@ window.addEventListener('load', () => {
     takeoffClimbCalc = createChartCalculator(takeoffClimbChart);
     cruiseClimbCalc = createChartCalculator(cruiseClimbChart);
     try {
-        refreshTools = FlightTools.initialize(tools, () => refreshEnginePerformance(tools));
+        const refreshEnginePerformance = initializeEnginePerformance(tools);
+        refreshTools = FlightTools.initialize(tools, refreshEnginePerformance);
     } catch (error) {
         // The original AFM-chart calculators are the primary application.
         // A side-tool failure must not prevent their initial calculation.

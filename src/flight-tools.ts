@@ -1,43 +1,7 @@
 namespace FlightTools {
-    export type WindTriangle = {
-        windCorrectionAngle: number;
-        trueHeading: number;
-        groundSpeed: number;
-    };
-
     const nauticalMileFeet = 6076.12;
     const degreesToRadians = (degrees: number) => degrees / 180 * Math.PI;
     const radiansToDegrees = (radians: number) => radians / Math.PI * 180;
-
-    export const calculateWindTriangle = (
-        trueCourse: number,
-        trueAirspeed: number,
-        windDirection: number,
-        windSpeed: number,
-    ): WindTriangle | null => {
-        if (![trueCourse, trueAirspeed, windDirection, windSpeed].every(Number.isFinite) ||
-            trueAirspeed <= 0 || windSpeed < 0) {
-            return null;
-        }
-        const windAngle = degreesToRadians(windDirection - trueCourse);
-        const crosswind = Math.sin(windAngle) * windSpeed;
-        const correctionRatio = crosswind / trueAirspeed;
-        if (Math.abs(correctionRatio) > 1) {
-            return null;
-        }
-        const correction = Math.asin(correctionRatio);
-        const groundSpeed = trueAirspeed * Math.cos(correction) -
-            Math.cos(windAngle) * windSpeed;
-        if (!(groundSpeed > 0)) {
-            return null;
-        }
-        const windCorrectionAngle = radiansToDegrees(correction);
-        return {
-            windCorrectionAngle,
-            trueHeading: trueCourse + windCorrectionAngle,
-            groundSpeed,
-        };
-    };
 
     export const descentDistance = (altitudeFeet: number, slopeDegrees: number) =>
         altitudeFeet / (nauticalMileFeet * Math.tan(degreesToRadians(slopeDegrees)));
@@ -176,29 +140,6 @@ namespace FlightTools {
                 }
             }
             setText(query('.h-type'), holdingType);
-
-            const variation = parseValue(query('.vr'), 0);
-            const trueCourse = parseDirection(query('.tc'));
-            const e6bWindSpeed = parsePositive(query('.winvel'));
-            const e6bWindDirection = e6bWindSpeed === 0
-                ? parseDirection(query('.windir'), 0)
-                : parseDirection(query('.windir'));
-            const trueAirspeed = parsePositive(query('.tas'));
-            const triangle = calculateWindTriangle(
-                trueCourse,
-                trueAirspeed,
-                e6bWindDirection,
-                e6bWindSpeed,
-            );
-            if (triangle && Number.isFinite(variation)) {
-                setText(query('.hdg'),
-                    `${formatDirection(triangle.trueHeading + variation)}M,` +
-                    `${formatDirection(triangle.trueHeading)}T`);
-                setText(query('.gs'), formatNumber(triangle.groundSpeed));
-            } else {
-                setText(query('.hdg'), '');
-                setText(query('.gs'), '');
-            }
 
             let slope = parsePositive(query('.d-slope'));
             if (slope >= 90) {

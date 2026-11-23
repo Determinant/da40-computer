@@ -16,15 +16,6 @@ for (const source of sources) {
 }
 const evaluate = expression => vm.runInContext(expression, context);
 
-test('shared wind triangle handles crosswind, calm wind, and impossible wind', () => {
-  assert.equal(
-    evaluate('Math.round(FlightTools.calculateWindTriangle(360, 120, 270, 20).trueHeading)'),
-    350,
-  );
-  assert.equal(evaluate('FlightTools.calculateWindTriangle(90, 120, 0, 0).groundSpeed'), 120);
-  assert.equal(evaluate('FlightTools.calculateWindTriangle(0, 10, 90, 20) === null'), true);
-});
-
 test('shared descent and standard-rate helpers preserve the DA40 formulas', () => {
   assert.equal(evaluate('FlightTools.descentDistance(1000, 3).toFixed(1)'), '3.1');
   assert.equal(evaluate('Math.round(FlightTools.standardRateBank(120))'), 18);
@@ -56,12 +47,12 @@ test('shared tool interactions preserve the original DA40 rounding', () => {
     };
     const inputSelectors = [
       '.wc-dir', '.wc-vel', '.wc-rwy', '.h-in', '.h-out', '.h-hdg', '.h-left',
-      '.vr', '.tc', '.winvel', '.windir', '.tas', '.d-slope', '.d-gs', '.d-alt',
+      '.d-slope', '.d-gs', '.d-alt',
       '.t-tas', '.c-cel', '.c-fah', '.c-nm', '.c-sm', '.c-ft', '.c-m',
       '.c-lb', '.c-kg', '.fpm-gs', '.fpm-rate', '.fpm-gradient',
     ];
     const outputSelectors = [
-      '.wc-cross', '.wc-head', '.h-type', '.hdg', '.gs', '.d-dist', '.d-rate',
+      '.wc-cross', '.wc-head', '.h-type', '.d-dist', '.d-rate',
       '.t-bank',
     ];
     const elements = new Map([
